@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>App 2 — DFT vs ML Cost Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:#f7f6f2; --surface:#ffffff; --border:rgba(26,26,46,0.12);
+    --accent:#1a5276; --accent-l:#d4e6f1; --accent-m:#5b8db8;
+    --teal:#0f6e56; --teal-l:#e1f5ee;
+    --amber:#854f0b; --amber-l:#faeeda;
+    --coral:#993c1d; --coral-l:#faece7;
+    --ink:#1a1a2e; --ink-s:#3d3d5c; --ink-m:#7a7a9a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;
+       font-size:14px;line-height:1.6;padding:20px 16px;min-height:100vh}
+
+  h1{font-size:18px;font-weight:600;color:var(--ink);margin-bottom:4px}
+  .sub{color:var(--ink-m);font-size:12px;margin-bottom:24px}
+
+  /* TABS */
+  .tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+  .tab{padding:7px 16px;border-radius:6px;border:1px solid var(--border);
+       background:var(--surface);color:var(--ink-m);cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;
+       transition:all .2s}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  .panel{display:none}.panel.active{display:block}
+
+  /* SLIDERS */
+  .card{background:var(--surface);border:1px solid var(--border);
+        border-radius:10px;padding:20px;margin-bottom:16px}
+  .card h3{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+           color:var(--ink-m);margin-bottom:16px;font-family:'IBM Plex Mono',monospace}
+
+  .slider-row{margin-bottom:14px}
+  .slider-row label{display:flex;justify-content:space-between;
+                    font-size:13px;color:var(--ink-s);margin-bottom:5px}
+  .slider-row label .val{color:var(--accent);font-family:'IBM Plex Mono',monospace;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+
+  /* RESULTS */
+  .results-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  @media(max-width:480px){.results-grid{grid-template-columns:1fr}}
+
+  .result-card{background:var(--surface);border:1px solid var(--border);
+               border-radius:10px;padding:16px;text-align:center}
+  .result-card.dft{border-top:3px solid var(--coral)}
+  .result-card.ml {border-top:3px solid var(--teal)}
+  .result-label{font-size:11px;font-family:'IBM Plex Mono',monospace;
+                letter-spacing:.08em;text-transform:uppercase;color:var(--ink-m);margin-bottom:8px}
+  .result-value{font-size:26px;font-weight:600;font-family:'IBM Plex Mono',monospace}
+  .result-card.dft .result-value{color:var(--coral)}
+  .result-card.ml  .result-value{color:var(--teal)}
+  .result-unit{font-size:11px;color:var(--ink-m);margin-top:3px}
+
+  /* BAR CHART */
+  .bar-section{background:var(--surface);border:1px solid var(--border);
+               border-radius:10px;padding:20px;margin-bottom:16px}
+  .bar-section h3{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+                  color:var(--ink-m);margin-bottom:16px;font-family:'IBM Plex Mono',monospace}
+  .bar-row{margin-bottom:14px}
+  .bar-label{display:flex;justify-content:space-between;font-size:12px;
+             color:var(--ink-s);margin-bottom:5px}
+  .bar-track{background:#f0ede4;border-radius:4px;height:20px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:4px;transition:width .6s ease;
+            display:flex;align-items:center;padding-left:8px;
+            font-size:11px;font-family:'IBM Plex Mono',monospace;color:#fff;font-weight:600}
+  .bar-fill.dft{background:var(--coral)}
+  .bar-fill.ml {background:var(--teal)}
+  .bar-fill.combined{background:var(--accent)}
+
+  /* SPEEDUP BOX */
+  .speedup-box{background:linear-gradient(135deg,var(--accent-l),var(--teal-l));
+               border:1px solid var(--accent-m);border-radius:10px;
+               padding:20px;text-align:center;margin-bottom:16px}
+  .speedup-num{font-size:48px;font-weight:600;font-family:'IBM Plex Mono',monospace;
+               color:var(--accent);line-height:1}
+  .speedup-label{font-size:13px;color:var(--ink-s);margin-top:6px}
+  .speedup-sub{font-size:11px;color:var(--ink-m);margin-top:4px}
+
+  /* WORKFLOW */
+  .workflow{display:flex;flex-direction:column;gap:0}
+  .wf-step{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .wf-step:last-child{border-bottom:none}
+  .wf-icon{font-size:22px;min-width:36px;text-align:center;padding-top:2px}
+  .wf-body h4{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px}
+  .wf-body p{font-size:13px;color:var(--ink-s);margin:0}
+  .wf-cost{font-family:'IBM Plex Mono',monospace;font-size:11px;margin-top:4px}
+  .wf-cost.expensive{color:var(--coral)}
+  .wf-cost.cheap{color:var(--teal)}
+  .wf-cost.medium{color:var(--accent)}
+
+  /* QUIZ */
+  .qz{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+      padding:18px;margin-bottom:14px}
+  .qz-q{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:12px;line-height:1.5}
+  .qz-opts{display:flex;flex-direction:column;gap:7px}
+  .qz-opt{padding:9px 13px;border:1px solid var(--border);border-radius:6px;
+          background:transparent;cursor:pointer;font-size:13px;color:var(--ink-s);
+          text-align:left;width:100%;font-family:'IBM Plex Sans',sans-serif;
+          transition:all .15s}
+  .qz-opt:hover{border-color:var(--accent-m);background:var(--accent-l)}
+  .qz-opt.correct{border-color:var(--teal);background:var(--teal-l);color:var(--teal)}
+  .qz-opt.wrong{border-color:var(--coral);background:var(--coral-l);color:var(--coral)}
+  .qz-fb{margin-top:10px;padding:9px 13px;border-radius:6px;font-size:13px;display:none}
+  .qz-fb.show{display:block}
+  .qz-fb.ok{background:var(--teal-l);color:var(--teal)}
+  .qz-fb.no{background:var(--coral-l);color:var(--coral)}
+
+  .score-row{display:flex;justify-content:space-between;align-items:center;
+             padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+  .score-num{font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--ink)}
+  .reset-btn{padding:7px 18px;background:var(--accent);color:#fff;
+             border:none;border-radius:6px;cursor:pointer;
+             font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>⚡ DFT vs ML — Cost Explorer</h1>
+<p class="sub">Post 2 companion · Adjust parameters to see how the combined DFT+ML pipeline saves time</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('calc',this)">🧮 Cost Calculator</button>
+  <button class="tab" onclick="switchTab('workflow',this)">🔄 Workflow</button>
+  <button class="tab" onclick="switchTab('quiz',this)">📝 Quiz</button>
+</div>
+
+<!-- ══ TAB 1: CALCULATOR ══ -->
+<div class="panel active" id="calc">
+
+  <div class="card">
+    <h3>Parameters</h3>
+
+    <div class="slider-row">
+      <label>Total compounds to screen <span class="val" id="v-total">10,000</span></label>
+      <input type="range" min="1000" max="100000" step="1000" value="10000" id="s-total" oninput="compute()"/>
+    </div>
+    <div class="slider-row">
+      <label>DFT time per structure (hours) <span class="val" id="v-dft-t">4</span> h</label>
+      <input type="range" min="0.5" max="24" step="0.5" value="4" id="s-dft-t" oninput="compute()"/>
+    </div>
+    <div class="slider-row">
+      <label>CPU cores per DFT job <span class="val" id="v-cores">16</span></label>
+      <input type="range" min="4" max="128" step="4" value="16" id="s-cores" oninput="compute()"/>
+    </div>
+    <div class="slider-row">
+      <label>Training set size (% of total) <span class="val" id="v-train">10</span>%</label>
+      <input type="range" min="5" max="50" step="5" value="10" id="s-train" oninput="compute()"/>
+    </div>
+    <div class="slider-row">
+      <label>ML validation set (top candidates) <span class="val" id="v-valid">50</span></label>
+      <input type="range" min="10" max="500" step="10" value="50" id="s-valid" oninput="compute()"/>
+    </div>
+  </div>
+
+  <div class="results-grid">
+    <div class="result-card dft">
+      <div class="result-label">Pure DFT Cost</div>
+      <div class="result-value" id="r-dft-cost">–</div>
+      <div class="result-unit">core-hours</div>
+    </div>
+    <div class="result-card ml">
+      <div class="result-label">DFT+ML Cost</div>
+      <div class="result-value" id="r-ml-cost">–</div>
+      <div class="result-unit">core-hours</div>
+    </div>
+  </div>
+
+  <div class="speedup-box">
+    <div class="speedup-num" id="r-speedup">–</div>
+    <div class="speedup-label">× faster with DFT + ML</div>
+    <div class="speedup-sub" id="r-saved">– core-hours saved</div>
+  </div>
+
+  <div class="bar-section">
+    <h3>Core-hours comparison</h3>
+    <div class="bar-row">
+      <div class="bar-label"><span>Pure DFT (all structures)</span><span id="b-dft-label">–</span></div>
+      <div class="bar-track"><div class="bar-fill dft" id="b-dft" style="width:100%">100%</div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>Training set DFT</span><span id="b-train-label">–</span></div>
+      <div class="bar-track"><div class="bar-fill ml" id="b-train" style="width:10%"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label"><span>DFT validation (top candidates)</span><span id="b-valid-label">–</span></div>
+      <div class="bar-track"><div class="bar-fill combined" id="b-valid" style="width:2%"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ TAB 2: WORKFLOW ══ -->
+<div class="panel" id="workflow">
+  <div class="card">
+    <h3>The DFT + ML Pipeline</h3>
+    <div class="workflow">
+      <div class="wf-step">
+        <div class="wf-icon">🗄️</div>
+        <div class="wf-body">
+          <h4>Step 1 — Collect structures</h4>
+          <p>Download candidate structures from databases: Materials Project, ICSD, AFLOW, or generate them computationally.</p>
+          <div class="wf-cost medium">Cost: free / minimal</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-icon">🧮</div>
+        <div class="wf-body">
+          <h4>Step 2 — Generate DFT training data</h4>
+          <p>Run DFT (VASP, WIEN2k, QE) on a representative subset. Calculate target properties: band gap, formation energy, etc. These become the labels for ML.</p>
+          <div class="wf-cost expensive" id="wf-dft-cost">Cost: ~40,000 core-hours (10% of database)</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-icon">🧠</div>
+        <div class="wf-body">
+          <h4>Step 3 — Train the ML model</h4>
+          <p>Train a model (e.g. ALIGNN, random forest, neural network) on the DFT-labelled data. Validate on a held-out test set. Tune hyperparameters.</p>
+          <div class="wf-cost cheap">Cost: GPU hours — much cheaper than DFT</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-icon">⚡</div>
+        <div class="wf-body">
+          <h4>Step 4 — Screen all candidates with ML</h4>
+          <p>Apply the trained model to all remaining structures. Predict the target property for each in milliseconds. Rank by predicted value and filter.</p>
+          <div class="wf-cost cheap">Cost: minutes on a laptop</div>
+        </div>
+      </div>
+      <div class="wf-step">
+        <div class="wf-icon">✅</div>
+        <div class="wf-body">
+          <h4>Step 5 — Validate top candidates with DFT</h4>
+          <p>Take the top 50–100 candidates from ML screening. Run full DFT calculations to verify. These are your final, reliable predictions.</p>
+          <div class="wf-cost medium" id="wf-valid-cost">Cost: ~200 core-hours (50 candidates)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 3: QUIZ ══ -->
+<div class="panel" id="quiz">
+
+  <div class="qz" id="qq1">
+    <div class="qz-q">1. What is the main role of DFT in the DFT+ML pipeline?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(1,0,false)">It replaces ML entirely</button>
+      <button class="qz-opt" onclick="qa(1,1,true)">It generates reliable labelled training data for the ML model</button>
+      <button class="qz-opt" onclick="qa(1,2,false)">It speeds up ML training</button>
+      <button class="qz-opt" onclick="qa(1,3,false)">It validates the chemical database</button>
+    </div>
+    <div class="qz-fb" id="qf1"></div>
+  </div>
+
+  <div class="qz" id="qq2">
+    <div class="qz-q">2. Why is ML prediction much faster than DFT for the same property?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(2,0,false)">ML uses faster computers</button>
+      <button class="qz-opt" onclick="qa(2,1,false)">ML solves simpler equations</button>
+      <button class="qz-opt" onclick="qa(2,2,true)">ML evaluates a mathematical function learned from data, not a self-consistent quantum mechanical calculation</button>
+      <button class="qz-opt" onclick="qa(2,3,false)">ML ignores most atoms</button>
+    </div>
+    <div class="qz-fb" id="qf2"></div>
+  </div>
+
+  <div class="qz" id="qq3">
+    <div class="qz-q">3. After screening 100,000 compounds with ML and finding 50 promising candidates, what should you do next?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(3,0,false)">Publish the ML predictions directly</button>
+      <button class="qz-opt" onclick="qa(3,1,false)">Train a second ML model on the 50 candidates</button>
+      <button class="qz-opt" onclick="qa(3,2,true)">Run DFT calculations on the 50 candidates to validate the ML predictions</button>
+      <button class="qz-opt" onclick="qa(3,3,false)">Screen 1,000,000 more compounds with ML</button>
+    </div>
+    <div class="qz-fb" id="qf3"></div>
+  </div>
+
+  <div class="score-row">
+    <div>
+      <div style="font-size:11px;color:var(--ink-m);margin-bottom:3px">SCORE</div>
+      <div class="score-num"><span id="score">0</span> / 3</div>
+    </div>
+    <button class="reset-btn" onclick="resetQuiz()">↺ Reset</button>
+  </div>
+</div>
+
+<script>
+// ── TABS ──
+function switchTab(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── CALCULATOR ──
+function fmt(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+
+function compute() {
+  const total  = +document.getElementById('s-total').value;
+  const dftT   = +document.getElementById('s-dft-t').value;
+  const cores  = +document.getElementById('s-cores').value;
+  const trainP = +document.getElementById('s-train').value / 100;
+  const valid  = +document.getElementById('s-valid').value;
+
+  document.getElementById('v-total').textContent = total.toLocaleString();
+  document.getElementById('v-dft-t').textContent = dftT;
+  document.getElementById('v-cores').textContent = cores;
+  document.getElementById('v-train').textContent = (+document.getElementById('s-train').value);
+  document.getElementById('v-valid').textContent = valid;
+
+  const coreHrPerStruct = dftT * cores;
+  const pureDFT   = total * coreHrPerStruct;
+  const trainDFT  = Math.round(total * trainP) * coreHrPerStruct;
+  const validDFT  = valid * coreHrPerStruct;
+  const combined  = trainDFT + validDFT;
+  const speedup   = pureDFT / combined;
+  const saved     = pureDFT - combined;
+
+  document.getElementById('r-dft-cost').textContent = fmt(pureDFT);
+  document.getElementById('r-ml-cost').textContent  = fmt(combined);
+  document.getElementById('r-speedup').textContent  = speedup.toFixed(1) + '×';
+  document.getElementById('r-saved').textContent    = fmt(saved) + ' core-hours saved';
+
+  // Bar chart
+  document.getElementById('b-dft-label').textContent   = fmt(pureDFT) + ' ch';
+  document.getElementById('b-train-label').textContent = fmt(trainDFT) + ' ch';
+  document.getElementById('b-valid-label').textContent = fmt(validDFT) + ' ch';
+
+  const maxVal = pureDFT;
+  document.getElementById('b-dft').style.width   = '100%';
+  document.getElementById('b-dft').textContent   = '100%';
+  const tp = Math.max(2, (trainDFT/maxVal*100));
+  document.getElementById('b-train').style.width = tp + '%';
+  document.getElementById('b-train').textContent = tp.toFixed(0) + '%';
+  const vp = Math.max(1, (validDFT/maxVal*100));
+  document.getElementById('b-valid').style.width = vp + '%';
+  document.getElementById('b-valid').textContent = vp < 3 ? '' : vp.toFixed(1) + '%';
+
+  // Update workflow costs
+  document.getElementById('wf-dft-cost').textContent =
+    `Cost: ~${fmt(trainDFT)} core-hours (${(trainP*100).toFixed(0)}% of database)`;
+  document.getElementById('wf-valid-cost').textContent =
+    `Cost: ~${fmt(validDFT)} core-hours (${valid} candidates)`;
+}
+
+// ── QUIZ ──
+let score = 0;
+const done = [false, false, false];
+
+const FB = {
+  1: { ok: '✅ Correct! DFT provides the ground-truth labelled data that the ML model learns from. Without DFT data, there is nothing to train on.',
+       no: '❌ Not quite. DFT\'s main role in the pipeline is as a data generator — it produces the reliable (structure → property) pairs used as training labels.' },
+  2: { ok: '✅ Correct! ML simply evaluates a mathematical function (learned during training). No iterative SCF cycle, no solving of differential equations.',
+       no: '❌ Not quite. Speed comes from the nature of ML: it evaluates a pre-learned function, not a quantum mechanical self-consistent field calculation.' },
+  3: { ok: '✅ Correct! Always validate ML predictions with DFT before drawing conclusions. ML screening identifies candidates; DFT confirms them.',
+       no: '❌ Not quite. After ML screening, the essential next step is DFT validation of the top candidates. ML predictions are a starting point, not a final answer.' }
+};
+
+function qa(qIdx, optIdx, isCorrect) {
+  if (done[qIdx-1]) return;
+  done[qIdx-1] = true;
+  const opts = document.querySelectorAll(`#qq${qIdx} .qz-opt`);
+  opts.forEach(o => { o.disabled = true; });
+  opts[optIdx].classList.add(isCorrect ? 'correct' : 'wrong');
+  if (!isCorrect) {
+    opts.forEach(o => {
+      if (o.onclick && o.onclick.toString().includes('true')) o.classList.add('correct');
+    });
+  }
+  const fb = document.getElementById(`qf${qIdx}`);
+  fb.textContent = isCorrect ? FB[qIdx].ok : FB[qIdx].no;
+  fb.className = 'qz-fb show ' + (isCorrect ? 'ok' : 'no');
+  if (isCorrect) { score++; document.getElementById('score').textContent = score; }
+}
+
+function resetQuiz() {
+  score = 0;
+  done.fill(false);
+  document.getElementById('score').textContent = '0';
+  for (let i=1;i<=3;i++) {
+    document.querySelectorAll(`#qq${i} .qz-opt`).forEach(o => {
+      o.disabled = false; o.className = 'qz-opt';
+    });
+    const fb = document.getElementById(`qf${i}`);
+    fb.className = 'qz-fb'; fb.textContent = '';
+  }
+}
+
+compute();
+</script>
+</body>
+</html>
