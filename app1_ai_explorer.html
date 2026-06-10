@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Interactive App 1 — What is AI? Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --border:#21262d;
+    --accent:#58a6ff; --green:#3fb950; --yellow:#d29922;
+    --red:#f85149; --text:#c9d1d9; --muted:#8b949e; --heading:#f0f6fc;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;
+       font-size:15px;line-height:1.7;padding:24px 16px;min-height:100vh}
+
+  h1{font-size:22px;color:var(--heading);margin-bottom:6px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:32px}
+
+  /* ── TABS ── */
+  .tabs{display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap}
+  .tab{padding:8px 18px;border-radius:6px;border:1px solid var(--border);
+       background:var(--surface);color:var(--muted);cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;
+       transition:all .2s}
+  .tab.active{background:var(--accent);color:#0d1117;border-color:var(--accent);font-weight:600}
+
+  /* ── PANEL ── */
+  .panel{display:none}.panel.active{display:block}
+
+  /* ══ TAB 1: HIERARCHY EXPLORER ══ */
+  .hier-wrap{display:flex;flex-direction:column;align-items:center;gap:0;margin:20px 0 32px}
+  .hier-node{
+    border:2px solid;border-radius:10px;padding:16px 28px;
+    text-align:center;cursor:pointer;transition:all .25s;
+    position:relative;width:100%;max-width:440px;
+  }
+  .hier-node.ai  {border-color:#58a6ff;background:#0c1929}
+  .hier-node.ml  {border-color:#3fb950;background:#0d2016;max-width:340px}
+  .hier-node.dl  {border-color:#d29922;background:#1a1400;max-width:240px}
+  .hier-node:hover{transform:translateY(-2px);filter:brightness(1.15)}
+  .hier-node .label{font-weight:600;font-size:16px}
+  .hier-node.ai .label{color:#58a6ff}
+  .hier-node.ml .label{color:#3fb950}
+  .hier-node.dl .label{color:#d29922}
+  .hier-node .hint{font-size:11px;font-family:'IBM Plex Mono',monospace;opacity:.6;margin-top:4px}
+  .arrow{width:2px;height:22px;background:var(--border);margin:0 auto}
+
+  .info-box{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;padding:22px;min-height:130px;transition:all .3s
+  }
+  .info-box h3{color:var(--heading);font-size:16px;margin-bottom:10px}
+  .info-box p{font-size:14px;color:var(--text);margin-bottom:10px}
+  .info-box .example{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+    background:#1f2937;padding:10px 14px;border-radius:6px;color:#79c0ff;
+    border-left:3px solid var(--accent)
+  }
+
+  /* ══ TAB 2: LIVE NEURON ══ */
+  .neuron-section{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:600px){.neuron-section{grid-template-columns:1fr}}
+
+  .sliders{background:var(--surface);border:1px solid var(--border);
+           border-radius:10px;padding:20px}
+  .sliders h3{color:var(--heading);font-size:14px;margin-bottom:16px;
+              font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
+
+  .slider-row{margin-bottom:14px}
+  .slider-row label{display:flex;justify-content:space-between;
+                    font-size:13px;color:var(--muted);margin-bottom:6px}
+  .slider-row label span{color:var(--accent);font-family:'IBM Plex Mono',monospace}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+
+  .activation-select{width:100%;background:var(--surface);border:1px solid var(--border);
+    color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;
+    font-family:'IBM Plex Mono',monospace;margin-top:6px}
+
+  .neuron-display{background:var(--surface);border:1px solid var(--border);
+                  border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:16px}
+
+  canvas#neuronCanvas{border-radius:8px;background:#0a0e13;width:100%;height:220px;display:block}
+
+  .output-panel{text-align:center;padding:16px;background:#0a0e13;
+                border-radius:8px;border:1px solid var(--border)}
+  .output-panel .out-label{font-family:'IBM Plex Mono',monospace;font-size:11px;
+                            color:var(--muted);letter-spacing:.1em;margin-bottom:6px}
+  .output-val{font-size:36px;font-weight:600;font-family:'IBM Plex Mono',monospace;
+              transition:color .3s}
+  .formula{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
+           margin-top:8px;text-align:center;line-height:1.8}
+  .formula span{color:#79c0ff}
+
+  /* ══ TAB 3: QUIZ ══ */
+  .quiz-q{background:var(--surface);border:1px solid var(--border);
+          border-radius:10px;padding:24px;margin-bottom:16px}
+  .quiz-q h4{color:var(--heading);font-size:15px;margin-bottom:16px;line-height:1.5}
+  .options{display:flex;flex-direction:column;gap:8px}
+  .opt{padding:10px 16px;border-radius:6px;border:1px solid var(--border);
+       cursor:pointer;font-size:14px;transition:all .2s;text-align:left;
+       background:transparent;color:var(--text);width:100%}
+  .opt:hover{border-color:var(--accent);background:#0c1929}
+  .opt.correct{border-color:var(--green);background:#0d2016;color:var(--green)}
+  .opt.wrong{border-color:var(--red);background:#1a0a0a;color:var(--red)}
+  .feedback{margin-top:12px;font-size:13px;padding:10px 14px;border-radius:6px;display:none}
+  .feedback.show{display:block}
+  .feedback.ok{background:#0d2016;color:var(--green);border:1px solid var(--green)}
+  .feedback.no{background:#1a0a0a;color:var(--red);border:1px solid var(--red)}
+
+  .score-bar{display:flex;justify-content:space-between;align-items:center;
+             margin-top:24px;padding:16px 20px;background:var(--surface);
+             border:1px solid var(--border);border-radius:10px}
+  .score-num{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--heading)}
+  .reset-btn{padding:8px 20px;background:var(--accent);color:#0d1117;
+             border:none;border-radius:6px;cursor:pointer;
+             font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>🤖 Interactive AI Explorer</h1>
+<p class="sub">Post 1 companion app · Click each section to explore · Module 1 / Foundations</p>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('hierarchy',this)">🗂 AI Hierarchy</button>
+  <button class="tab" onclick="switchTab('neuron',this)">⚡ Live Neuron</button>
+  <button class="tab" onclick="switchTab('quiz',this)">📝 Quick Quiz</button>
+</div>
+
+<!-- ══════════ TAB 1: HIERARCHY ══════════ -->
+<div class="panel active" id="hierarchy">
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:20px">
+    Click each box to learn what it means and see a materials science example.
+  </p>
+
+  <div class="hier-wrap">
+    <div class="hier-node ai" onclick="showInfo('ai')">
+      <div class="label">🤖 Artificial Intelligence</div>
+      <div class="hint">click to explore</div>
+    </div>
+    <div class="arrow"></div>
+    <div class="hier-node ml" onclick="showInfo('ml')">
+      <div class="label">📊 Machine Learning</div>
+      <div class="hint">click to explore</div>
+    </div>
+    <div class="arrow"></div>
+    <div class="hier-node dl" onclick="showInfo('dl')">
+      <div class="label">🧠 Deep Learning</div>
+      <div class="hint">click to explore</div>
+    </div>
+  </div>
+
+  <div class="info-box" id="infoBox">
+    <h3>👆 Click a box above to learn more</h3>
+    <p>Each level of the hierarchy is a subset of the one above it. Deep Learning ⊂ Machine Learning ⊂ Artificial Intelligence.</p>
+    <div class="example">AI ⊃ ML ⊃ Deep Learning</div>
+  </div>
+
+</div>
+
+<!-- ══════════ TAB 2: NEURON ══════════ -->
+<div class="panel" id="neuron">
+
+  <p style="font-size:13px;color:var(--muted);margin-bottom:20px">
+    A single artificial neuron: the basic building block of all neural networks.
+    Adjust the inputs and weight, see how the output changes in real time.
+  </p>
+
+  <div class="neuron-section">
+
+    <div class="sliders">
+      <h3>INPUT CONTROLS</h3>
+
+      <div class="slider-row">
+        <label>Input x₁ (e.g. lattice param) <span id="v1">0.5</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0.5" id="x1" oninput="updateNeuron()"/>
+      </div>
+      <div class="slider-row">
+        <label>Input x₂ (e.g. atomic number) <span id="v2">0.5</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0.5" id="x2" oninput="updateNeuron()"/>
+      </div>
+      <div class="slider-row">
+        <label>Weight w₁ <span id="w1v">0.8</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0.8" id="w1" oninput="updateNeuron()"/>
+      </div>
+      <div class="slider-row">
+        <label>Weight w₂ <span id="w2v">0.6</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0.6" id="w2" oninput="updateNeuron()"/>
+      </div>
+      <div class="slider-row">
+        <label>Bias b <span id="bv">0.0</span></label>
+        <input type="range" min="-2" max="2" step="0.01" value="0.0" id="b" oninput="updateNeuron()"/>
+      </div>
+
+      <div style="margin-top:16px">
+        <label style="font-size:13px;color:var(--muted)">Activation function</label>
+        <select class="activation-select" id="actFn" onchange="updateNeuron()">
+          <option value="sigmoid">Sigmoid σ(z)</option>
+          <option value="relu">ReLU max(0,z)</option>
+          <option value="tanh">Tanh tanh(z)</option>
+          <option value="linear">Linear z</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="neuron-display">
+      <canvas id="neuronCanvas" width="360" height="220"></canvas>
+
+      <div class="output-panel">
+        <div class="out-label">NEURON OUTPUT</div>
+        <div class="output-val" id="outputVal">–</div>
+        <div class="formula" id="formulaDisp"></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--muted)">
+    <strong style="color:var(--heading)">What this means:</strong>
+    The neuron computes <code style="background:#1f2937;color:#79c0ff;padding:2px 6px;border-radius:4px">z = w₁·x₁ + w₂·x₂ + b</code>, 
+    then applies an activation function to get the output. 
+    In a full neural network, millions of such neurons are stacked in layers — each learning its own weights from data.
+  </div>
+</div>
+
+<!-- ══════════ TAB 3: QUIZ ══════════ -->
+<div class="panel" id="quiz">
+
+  <div id="q0" class="quiz-q">
+    <h4>1. What is the correct relationship between AI, Machine Learning, and Deep Learning?</h4>
+    <div class="options">
+      <button class="opt" onclick="answer(0,0,false)">They are three completely different fields</button>
+      <button class="opt" onclick="answer(0,1,true)">Deep Learning ⊂ Machine Learning ⊂ AI</button>
+      <button class="opt" onclick="answer(0,2,false)">Machine Learning ⊂ Deep Learning ⊂ AI</button>
+      <button class="opt" onclick="answer(0,3,false)">AI ⊂ Machine Learning ⊂ Deep Learning</button>
+    </div>
+    <div class="feedback" id="f0"></div>
+  </div>
+
+  <div id="q1" class="quiz-q">
+    <h4>2. In supervised learning for materials science, what serves as the "label"?</h4>
+    <div class="options">
+      <button class="opt" onclick="answer(1,0,false)">The crystal structure (input to the model)</button>
+      <button class="opt" onclick="answer(1,1,false)">The Python code used to run the model</button>
+      <button class="opt" onclick="answer(1,2,true)">The DFT-calculated property (e.g. band gap) we want to predict</button>
+      <button class="opt" onclick="answer(1,3,false)">The number of layers in the neural network</button>
+    </div>
+    <div class="feedback" id="f1"></div>
+  </div>
+
+  <div id="q2" class="quiz-q">
+    <h4>3. A model performs perfectly on training data but poorly on new test data. This is called:</h4>
+    <div class="options">
+      <button class="opt" onclick="answer(2,0,false)">Underfitting</button>
+      <button class="opt" onclick="answer(2,1,true)">Overfitting</button>
+      <button class="opt" onclick="answer(2,2,false)">Generalization</button>
+      <button class="opt" onclick="answer(2,3,false)">Backpropagation</button>
+    </div>
+    <div class="feedback" id="f2"></div>
+  </div>
+
+  <div id="q3" class="quiz-q">
+    <h4>4. Which ML type would you use to automatically group crystal structures by similarity, without any labels?</h4>
+    <div class="options">
+      <button class="opt" onclick="answer(3,0,false)">Supervised learning</button>
+      <button class="opt" onclick="answer(3,1,false)">Reinforcement learning</button>
+      <button class="opt" onclick="answer(3,2,true)">Unsupervised learning</button>
+      <button class="opt" onclick="answer(3,3,false)">Deep learning (always required)</button>
+    </div>
+    <div class="feedback" id="f3"></div>
+  </div>
+
+  <div id="q4" class="quiz-q">
+    <h4>5. What is the main advantage of an ML model over a DFT calculation for property prediction?</h4>
+    <div class="options">
+      <button class="opt" onclick="answer(4,0,false)">It is always more accurate</button>
+      <button class="opt" onclick="answer(4,1,false)">It solves the Schrödinger equation exactly</button>
+      <button class="opt" onclick="answer(4,2,true)">It predicts in milliseconds after training, enabling large-scale screening</button>
+      <button class="opt" onclick="answer(4,3,false)">It requires no data</button>
+    </div>
+    <div class="feedback" id="f4"></div>
+  </div>
+
+  <div class="score-bar">
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">YOUR SCORE</div>
+      <div class="score-num"><span id="scoreNum">0</span> / 5</div>
+    </div>
+    <button class="reset-btn" onclick="resetQuiz()">↺ Reset</button>
+  </div>
+
+</div>
+
+<script>
+// ── TAB SWITCHING ──
+function switchTab(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── HIERARCHY INFO ──
+const INFO = {
+  ai: {
+    title: '🤖 Artificial Intelligence',
+    body: 'The broadest field: any computational technique that mimics intelligent behaviour. This includes rule-based expert systems, search algorithms, planning, robotics, natural language processing — and Machine Learning.',
+    example: 'Expert system: "if band gap > 3 eV → insulator"\n→ No learning, just hard-coded rules'
+  },
+  ml: {
+    title: '📊 Machine Learning',
+    body: 'A subset of AI where systems learn from data rather than explicit rules. Given enough examples, the model discovers patterns on its own. No one programs "what a semiconductor looks like" — it learns from thousands of examples.',
+    example: 'Train on 50,000 DFT band gaps\n→ Model learns: structure → Eg (eV)'
+  },
+  dl: {
+    title: '🧠 Deep Learning',
+    body: 'A subset of ML using neural networks with many layers. Extremely powerful for complex patterns: images, graphs, sequences. ALIGNN and CGCNN — tools you may know — are deep learning models for materials.',
+    example: 'ALIGNN: crystal graph + line graph\n→ Predicts Eg, Ef, elastic moduli...'
+  }
+};
+
+function showInfo(key) {
+  const d = INFO[key];
+  const box = document.getElementById('infoBox');
+  box.innerHTML = `<h3>${d.title}</h3><p>${d.body}</p><div class="example">${d.example}</div>`;
+}
+
+// ── NEURON ──
+function sigmoid(z){ return 1/(1+Math.exp(-z)) }
+function relu(z){ return Math.max(0,z) }
+function tanh_fn(z){ return Math.tanh(z) }
+
+function updateNeuron() {
+  const x1 = +document.getElementById('x1').value;
+  const x2 = +document.getElementById('x2').value;
+  const w1 = +document.getElementById('w1').value;
+  const w2 = +document.getElementById('w2').value;
+  const b  = +document.getElementById('b').value;
+  const fn = document.getElementById('actFn').value;
+
+  document.getElementById('v1').textContent = x1.toFixed(2);
+  document.getElementById('v2').textContent = x2.toFixed(2);
+  document.getElementById('w1v').textContent = w1.toFixed(2);
+  document.getElementById('w2v').textContent = w2.toFixed(2);
+  document.getElementById('bv').textContent  = b.toFixed(2);
+
+  const z = w1*x1 + w2*x2 + b;
+  let out;
+  switch(fn){
+    case 'sigmoid': out = sigmoid(z); break;
+    case 'relu':    out = relu(z);    break;
+    case 'tanh':    out = tanh_fn(z); break;
+    default:        out = z;
+  }
+
+  const outEl = document.getElementById('outputVal');
+  outEl.textContent = out.toFixed(4);
+  outEl.style.color = out > 0 ? '#3fb950' : out < 0 ? '#f85149' : '#8b949e';
+
+  document.getElementById('formulaDisp').innerHTML =
+    `z = ${w1.toFixed(2)}×${x1.toFixed(2)} + ${w2.toFixed(2)}×${x2.toFixed(2)} + ${b.toFixed(2)} = <span>${z.toFixed(4)}</span>\noutput = f(z) = <span>${out.toFixed(4)}</span>`;
+
+  drawNeuron(x1, x2, w1, w2, b, z, out);
+}
+
+function drawNeuron(x1, x2, w1, w2, b, z, out) {
+  const canvas = document.getElementById('neuronCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Colors
+  const blue = '#58a6ff', green = '#3fb950', yellow = '#d29922', gray = '#8b949e';
+  const outColor = out > 0 ? green : out < 0 ? '#f85149' : gray;
+
+  // Positions
+  const cx = W*0.52, cy = H*0.5, r = 32;
+  const in1 = {x: W*0.12, y: H*0.3};
+  const in2 = {x: W*0.12, y: H*0.7};
+  const bNode = {x: W*0.28, y: H*0.88};
+  const outPt = {x: W*0.88, y: cy};
+
+  function drawArrow(x1,y1,x2,y2,col,label){
+    ctx.beginPath();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.stroke();
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    ctx.fillStyle = col;
+    ctx.font = '11px IBM Plex Mono, monospace';
+    ctx.fillText(label, mx+4, my-4);
+  }
+
+  function circle(x,y,r,col,label,sub){
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = '#0a0e13';
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.font = 'bold 12px IBM Plex Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText(label,x,y+4);
+    if(sub){
+      ctx.font = '10px IBM Plex Mono';
+      ctx.fillStyle = gray;
+      ctx.fillText(sub,x,y+18);
+    }
+  }
+
+  // Draw connections
+  drawArrow(in1.x+18, in1.y, cx-r, cy-10, blue, `w₁=${w1.toFixed(1)}`);
+  drawArrow(in2.x+18, in2.y, cx-r, cy+10, blue, `w₂=${w2.toFixed(1)}`);
+  drawArrow(bNode.x+14, bNode.y-8, cx-r+8, cy+r-4, yellow, `b=${b.toFixed(1)}`);
+  drawArrow(cx+r, cy, outPt.x-18, cy, outColor, `out`);
+
+  // Input nodes
+  circle(in1.x, in1.y, 18, blue, `x₁`, x1.toFixed(2));
+  circle(in2.x, in2.y, 18, blue, `x₂`, x2.toFixed(2));
+  circle(bNode.x, bNode.y, 14, yellow, 'b', b.toFixed(1));
+
+  // Main neuron
+  circle(cx, cy, r, outColor, 'Σ→f', z.toFixed(2));
+
+  // Output
+  ctx.beginPath();
+  ctx.arc(outPt.x, outPt.y, 20, 0, Math.PI*2);
+  ctx.fillStyle = '#0a0e13';
+  ctx.fill();
+  ctx.strokeStyle = outColor;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.fillStyle = outColor;
+  ctx.font = 'bold 11px IBM Plex Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText(out.toFixed(2), outPt.x, outPt.y+4);
+
+  ctx.textAlign = 'left';
+}
+
+// ── QUIZ ──
+let score = 0;
+const answered = new Array(5).fill(false);
+
+const FEEDBACK = [
+  { ok: 'Correct! Deep Learning is a subset of ML, which is a subset of AI. Each level adds more specificity.',
+    no: 'Not quite. The correct nesting is: Deep Learning ⊂ Machine Learning ⊂ Artificial Intelligence.' },
+  { ok: 'Correct! In supervised learning, the label is the target value we want to predict — here, the DFT property.',
+    no: 'Not quite. The label is the output we want to predict — e.g., the DFT-calculated band gap.' },
+  { ok: 'Correct! This is overfitting — the model memorised the training data but cannot generalize.',
+    no: 'Not quite. This is overfitting: great on training data, poor on new data.' },
+  { ok: 'Correct! Clustering without labels is unsupervised learning.',
+    no: 'Not quite. When there are no labels and we seek hidden structure, we use unsupervised learning.' },
+  { ok: 'Correct! Speed is the key advantage. After training, ML models predict in milliseconds.',
+    no: 'Not quite. The main advantage is speed: milliseconds per prediction enables large-scale screening.' }
+];
+
+function answer(qIdx, optIdx, isCorrect) {
+  if (answered[qIdx]) return;
+  answered[qIdx] = true;
+
+  const opts = document.querySelectorAll(`#q${qIdx} .opt`);
+  opts.forEach((o,i) => {
+    o.disabled = true;
+    if(i === optIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+  });
+  // Show correct if wrong
+  if(!isCorrect){
+    opts.forEach((o,i) => { if(o.onclick.toString().includes('true')) o.classList.add('correct'); });
+  }
+
+  const fb = document.getElementById(`f${qIdx}`);
+  fb.textContent = isCorrect ? '✅ ' + FEEDBACK[qIdx].ok : '❌ ' + FEEDBACK[qIdx].no;
+  fb.className = 'feedback show ' + (isCorrect ? 'ok' : 'no');
+
+  if(isCorrect){ score++; document.getElementById('scoreNum').textContent = score; }
+}
+
+function resetQuiz() {
+  score = 0;
+  document.getElementById('scoreNum').textContent = '0';
+  answered.fill(false);
+  for(let i=0;i<5;i++){
+    const opts = document.querySelectorAll(`#q${i} .opt`);
+    opts.forEach(o => { o.disabled=false; o.className='opt'; });
+    const fb = document.getElementById(`f${i}`);
+    fb.className = 'feedback';
+    fb.textContent = '';
+  }
+}
+
+// Fix canvas resolution for crisp rendering
+function resizeCanvas() {
+  const canvas = document.getElementById('neuronCanvas');
+  const container = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(container.clientWidth, 300);
+  canvas.width  = w * dpr;
+  canvas.height = 220 * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = '220px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  updateNeuron();
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+</script>
+</body>
+</html>
