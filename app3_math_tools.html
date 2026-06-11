@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>App 3 — Math Tools Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#f7f6f2;--surface:#fff;--border:rgba(26,26,46,.12);
+    --accent:#1a5276;--al:#d4e6f1;--am:#5b8db8;
+    --teal:#0f6e56;--tl:#e1f5ee;
+    --amber:#854f0b;--aml:#faeeda;
+    --coral:#993c1d;--cl:#faece7;
+    --ink:#1a1a2e;--is:#3d3d5c;--im:#7a7a9a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;
+       font-size:14px;line-height:1.65;padding:20px 16px}
+
+  h1{font-size:17px;font-weight:600;margin-bottom:3px}
+  .sub{color:var(--im);font-size:12px;margin-bottom:20px}
+
+  .tabs{display:flex;gap:5px;margin-bottom:18px;flex-wrap:wrap}
+  .tab{padding:7px 14px;border-radius:6px;border:1px solid var(--border);
+       background:var(--surface);color:var(--im);cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;transition:all .2s}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  .panel{display:none}.panel.active{display:block}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px}
+  .card h3{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+           color:var(--im);margin-bottom:14px;font-family:'IBM Plex Mono',monospace}
+
+  /* VECTOR TAB */
+  .vec-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:480px){.vec-grid{grid-template-columns:1fr}}
+
+  .vec-inputs{display:flex;flex-direction:column;gap:8px}
+  .vec-row{display:flex;align-items:center;gap:8px}
+  .vec-row label{font-family:'IBM Plex Mono',monospace;font-size:12px;
+                 color:var(--am);min-width:28px}
+  .vec-row input{flex:1;padding:7px 10px;border:1px solid var(--border);
+                 border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+                 background:var(--surface);color:var(--ink)}
+  .vec-row input:focus{outline:none;border-color:var(--am)}
+
+  .vec-results{display:flex;flex-direction:column;gap:8px}
+  .res-item{background:var(--bg);border-radius:6px;padding:10px 12px}
+  .res-label{font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;
+             text-transform:uppercase;color:var(--im);margin-bottom:3px}
+  .res-value{font-size:18px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--accent)}
+  .res-formula{font-size:11px;color:var(--im);margin-top:2px}
+
+  /* GRADIENT DESCENT TAB */
+  canvas{border-radius:8px;background:#fff;width:100%;display:block}
+  .gd-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  @media(max-width:480px){.gd-controls{grid-template-columns:1fr}}
+
+  .sl-row{margin-bottom:8px}
+  .sl-row label{display:flex;justify-content:space-between;font-size:12px;
+                color:var(--is);margin-bottom:4px}
+  .sl-row label span{color:var(--accent);font-family:'IBM Plex Mono',monospace;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+
+  .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;transition:all .15s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#15436b}
+  .btn-secondary{background:var(--bg);color:var(--is);border:1px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--am)}
+
+  .gd-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .stat-box{background:var(--surface);border:1px solid var(--border);
+            border-radius:8px;padding:10px;text-align:center}
+  .stat-label{font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;
+              text-transform:uppercase;color:var(--im);margin-bottom:4px}
+  .stat-val{font-size:16px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--accent)}
+
+  /* METRICS TAB */
+  .metrics-input{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .metrics-input label{font-size:12px;color:var(--is);margin-bottom:3px;
+                       font-family:'IBM Plex Mono',monospace}
+  .metrics-input textarea{padding:10px;border:1px solid var(--border);border-radius:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;resize:vertical;
+    background:var(--surface);color:var(--ink);line-height:1.6}
+  .metrics-input textarea:focus{outline:none;border-color:var(--am)}
+
+  .metrics-results{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media(max-width:480px){.metrics-results{grid-template-columns:1fr}}
+
+  .met-card{background:var(--surface);border:1px solid var(--border);
+            border-radius:10px;padding:14px;text-align:center}
+  .met-card.mae{border-top:3px solid var(--accent)}
+  .met-card.rmse{border-top:3px solid var(--teal)}
+  .met-card.r2{border-top:3px solid var(--amber)}
+  .met-label{font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;
+             text-transform:uppercase;color:var(--im);margin-bottom:6px}
+  .met-value{font-size:24px;font-weight:600;font-family:'IBM Plex Mono',monospace}
+  .met-card.mae  .met-value{color:var(--accent)}
+  .met-card.rmse .met-value{color:var(--teal)}
+  .met-card.r2   .met-value{color:var(--amber)}
+  .met-interp{font-size:11px;color:var(--im);margin-top:4px;min-height:16px}
+
+  .scatter-wrap{margin-top:12px}
+  canvas#scatterCanvas{border:1px solid var(--border);border-radius:8px}
+
+  /* QUIZ */
+  .qz{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+      padding:16px;margin-bottom:12px}
+  .qz-q{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:10px;line-height:1.5}
+  .qz-opts{display:flex;flex-direction:column;gap:6px}
+  .qz-opt{padding:8px 12px;border:1px solid var(--border);border-radius:6px;
+          background:transparent;cursor:pointer;font-size:13px;color:var(--is);
+          text-align:left;width:100%;font-family:'IBM Plex Sans',sans-serif;transition:all .15s}
+  .qz-opt:hover{border-color:var(--am);background:var(--al)}
+  .qz-opt.correct{border-color:var(--teal);background:var(--tl);color:var(--teal)}
+  .qz-opt.wrong{border-color:var(--coral);background:var(--cl);color:var(--coral)}
+  .qz-fb{margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;display:none}
+  .qz-fb.show{display:block}
+  .qz-fb.ok{background:var(--tl);color:var(--teal)}
+  .qz-fb.no{background:var(--cl);color:var(--coral)}
+  .score-row{display:flex;justify-content:space-between;align-items:center;
+             padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+  .reset-btn{padding:6px 16px;background:var(--accent);color:#fff;border:none;
+             border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>📐 Math Tools Explorer</h1>
+<p class="sub">Post 3 companion · Vectors · Gradient Descent · ML Metrics</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('vectors',this)">📏 Vectors</button>
+  <button class="tab" onclick="switchTab('gradient',this)">📉 Gradient Descent</button>
+  <button class="tab" onclick="switchTab('metrics',this)">📊 ML Metrics</button>
+  <button class="tab" onclick="switchTab('quiz',this)">📝 Quiz</button>
+</div>
+
+<!-- ══ TAB 1: VECTORS ══ -->
+<div class="panel active" id="vectors">
+  <div class="card">
+    <h3>Material Feature Vectors</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:14px">
+      Enter two materials' feature vectors (up to 4 features each). See norm, dot product, and cosine similarity computed live.
+    </p>
+    <div class="vec-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;font-family:'IBM Plex Mono',monospace">Vector A (Material 1)</div>
+        <div class="vec-inputs">
+          <div class="vec-row"><label>x₁</label><input type="number" id="a1" value="3.56" step="0.01" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₂</label><input type="number" id="a2" value="26" step="1" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₃</label><input type="number" id="a3" value="8" step="1" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₄</label><input type="number" id="a4" value="1.83" step="0.01" oninput="computeVectors()"/></div>
+        </div>
+        <div style="font-size:11px;color:var(--im);margin-top:8px">e.g. [a, Z_A, Z_B, ΔEN]</div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--teal);margin-bottom:8px;font-family:'IBM Plex Mono',monospace">Vector B (Material 2)</div>
+        <div class="vec-inputs">
+          <div class="vec-row"><label>x₁</label><input type="number" id="b1" value="4.12" step="0.01" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₂</label><input type="number" id="b2" value="22" step="1" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₃</label><input type="number" id="b3" value="8" step="1" oninput="computeVectors()"/></div>
+          <div class="vec-row"><label>x₄</label><input type="number" id="b4" value="2.17" step="0.01" oninput="computeVectors()"/></div>
+        </div>
+        <div style="font-size:11px;color:var(--im);margin-top:8px">e.g. [a, Z_A, Z_B, ΔEN]</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Results</h3>
+    <div class="vec-results">
+      <div class="res-item">
+        <div class="res-label">‖A‖ — Norm of Material A</div>
+        <div class="res-value" id="normA">–</div>
+        <div class="res-formula">√(x₁² + x₂² + x₃² + x₄²)</div>
+      </div>
+      <div class="res-item">
+        <div class="res-label">‖B‖ — Norm of Material B</div>
+        <div class="res-value" id="normB">–</div>
+        <div class="res-formula">√(x₁² + x₂² + x₃² + x₄²)</div>
+      </div>
+      <div class="res-item">
+        <div class="res-label">A · B — Dot Product</div>
+        <div class="res-value" id="dotAB">–</div>
+        <div class="res-formula">Σ aᵢ × bᵢ</div>
+      </div>
+      <div class="res-item">
+        <div class="res-label">cos θ — Cosine Similarity</div>
+        <div class="res-value" id="cosAB">–</div>
+        <div class="res-formula" id="cosInterp">–</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 2: GRADIENT DESCENT ══ -->
+<div class="panel" id="gradient">
+  <div class="card">
+    <h3>Live Gradient Descent on a Loss Surface</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:12px">
+      Watch gradient descent find the minimum of a simple loss function L(w) = (w−target)² + noise.
+      This is exactly what happens during ML training.
+    </p>
+    <div class="gd-controls">
+      <div>
+        <div class="sl-row">
+          <label>Learning rate η <span id="lrVal">0.10</span></label>
+          <input type="range" min="0.01" max="0.95" step="0.01" value="0.10" id="lr" oninput="document.getElementById('lrVal').textContent=parseFloat(this.value).toFixed(2)"/>
+        </div>
+        <div class="sl-row">
+          <label>Starting point w₀ <span id="w0Val">-3.0</span></label>
+          <input type="range" min="-4" max="4" step="0.1" value="-3" id="w0" oninput="document.getElementById('w0Val').textContent=parseFloat(this.value).toFixed(1)"/>
+        </div>
+      </div>
+      <div>
+        <div class="sl-row">
+          <label>Target minimum <span id="targetVal">1.5</span></label>
+          <input type="range" min="-3" max="3" step="0.1" value="1.5" id="target" oninput="document.getElementById('targetVal').textContent=parseFloat(this.value).toFixed(1)"/>
+        </div>
+        <div class="sl-row">
+          <label>Max iterations <span id="iterVal">30</span></label>
+          <input type="range" min="5" max="100" step="5" value="30" id="maxIter" oninput="document.getElementById('iterVal').textContent=this.value"/>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="runGD()">▶ Run</button>
+      <button class="btn btn-secondary" onclick="resetGD()">↺ Reset</button>
+    </div>
+  </div>
+
+  <canvas id="gdCanvas" height="220"></canvas>
+
+  <div class="gd-stats">
+    <div class="stat-box"><div class="stat-label">Final w</div><div class="stat-val" id="finalW">–</div></div>
+    <div class="stat-box"><div class="stat-label">Final Loss</div><div class="stat-val" id="finalL">–</div></div>
+    <div class="stat-box"><div class="stat-label">Iterations</div><div class="stat-val" id="finalIter">–</div></div>
+  </div>
+
+  <div style="margin-top:12px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--im)">
+    <strong style="color:var(--ink)">Try this:</strong>
+    Set η = 0.9 → watch the path overshoot and oscillate (like a bad SCF mixing parameter).
+    Then set η = 0.05 → very slow but stable convergence.
+    Sweet spot: η ≈ 0.1–0.3.
+  </div>
+</div>
+
+<!-- ══ TAB 3: METRICS ══ -->
+<div class="panel" id="metrics">
+  <div class="card">
+    <h3>ML Metrics Calculator</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:12px">
+      Enter DFT values (true) and ML predictions — one per line. Computes MAE, RMSE, R².
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="metrics-input">
+        <label>True values (DFT band gaps, eV)</label>
+        <textarea id="trueVals" rows="8" placeholder="1.12&#10;2.34&#10;0.67&#10;3.10&#10;1.87&#10;2.56&#10;0.45&#10;1.95">1.12
+2.34
+0.67
+3.10
+1.87
+2.56
+0.45
+1.95</textarea>
+      </div>
+      <div class="metrics-input">
+        <label>Predicted values (ML output, eV)</label>
+        <textarea id="predVals" rows="8" placeholder="1.05&#10;2.41&#10;0.72&#10;2.98&#10;1.91&#10;2.48&#10;0.51&#10;2.02">1.05
+2.41
+0.72
+2.98
+1.91
+2.48
+0.51
+2.02</textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="computeMetrics()">Calculate Metrics</button>
+  </div>
+
+  <div class="metrics-results" id="metricsResults" style="display:none">
+    <div class="met-card mae">
+      <div class="met-label">MAE (eV)</div>
+      <div class="met-value" id="maeVal">–</div>
+      <div class="met-interp" id="maeInterp"></div>
+    </div>
+    <div class="met-card rmse">
+      <div class="met-label">RMSE (eV)</div>
+      <div class="met-value" id="rmseVal">–</div>
+      <div class="met-interp" id="rmseInterp"></div>
+    </div>
+    <div class="met-card r2">
+      <div class="met-label">R²</div>
+      <div class="met-value" id="r2Val">–</div>
+      <div class="met-interp" id="r2Interp"></div>
+    </div>
+  </div>
+
+  <div class="scatter-wrap" id="scatterWrap" style="display:none">
+    <div style="font-size:11px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--im);margin:12px 0 6px">Predicted vs True (parity plot)</div>
+    <canvas id="scatterCanvas" width="320" height="260"></canvas>
+  </div>
+</div>
+
+<!-- ══ TAB 4: QUIZ ══ -->
+<div class="panel" id="quiz">
+  <div class="qz" id="qq1">
+    <div class="qz-q">1. Two material feature vectors have cosine similarity = 0.99. What does this mean?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(1,0,false)">They have identical band gaps</button>
+      <button class="qz-opt" onclick="qa(1,1,true)">They point in nearly the same direction in feature space — very similar materials</button>
+      <button class="qz-opt" onclick="qa(1,2,false)">They have the same crystal structure</button>
+      <button class="qz-opt" onclick="qa(1,3,false)">They are completely different materials</button>
+    </div>
+    <div class="qz-fb" id="qf1"></div>
+  </div>
+
+  <div class="qz" id="qq2">
+    <div class="qz-q">2. Your gradient descent loss oscillates up and down and never converges. What should you do?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(2,0,false)">Increase the learning rate η</button>
+      <button class="qz-opt" onclick="qa(2,1,true)">Decrease the learning rate η</button>
+      <button class="qz-opt" onclick="qa(2,2,false)">Add more training data</button>
+      <button class="qz-opt" onclick="qa(2,3,false)">Use a deeper neural network</button>
+    </div>
+    <div class="qz-fb" id="qf2"></div>
+  </div>
+
+  <div class="qz" id="qq3">
+    <div class="qz-q">3. Which metric penalises large errors more heavily than small ones?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(3,0,false)">MAE</button>
+      <button class="qz-opt" onclick="qa(3,1,true)">RMSE</button>
+      <button class="qz-opt" onclick="qa(3,2,false)">R²</button>
+      <button class="qz-opt" onclick="qa(3,3,false)">Cosine similarity</button>
+    </div>
+    <div class="qz-fb" id="qf3"></div>
+  </div>
+
+  <div class="score-row">
+    <div>
+      <div style="font-size:10px;color:var(--im);margin-bottom:3px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em">SCORE</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--ink)"><span id="score">0</span> / 3</div>
+    </div>
+    <button class="reset-btn" onclick="resetQuiz()">↺ Reset</button>
+  </div>
+</div>
+
+<script>
+// ── TABS ──
+function switchTab(id,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='gradient') drawGDCanvas();
+}
+
+// ── VECTORS ──
+function computeVectors(){
+  const a=[+document.getElementById('a1').value,+document.getElementById('a2').value,
+           +document.getElementById('a3').value,+document.getElementById('a4').value];
+  const b=[+document.getElementById('b1').value,+document.getElementById('b2').value,
+           +document.getElementById('b3').value,+document.getElementById('b4').value];
+  const normA=Math.sqrt(a.reduce((s,v)=>s+v*v,0));
+  const normB=Math.sqrt(b.reduce((s,v)=>s+v*v,0));
+  const dot=a.reduce((s,v,i)=>s+v*b[i],0);
+  const cos=dot/(normA*normB);
+  document.getElementById('normA').textContent=normA.toFixed(3);
+  document.getElementById('normB').textContent=normB.toFixed(3);
+  document.getElementById('dotAB').textContent=dot.toFixed(3);
+  document.getElementById('cosAB').textContent=cos.toFixed(4);
+  const deg=(Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI).toFixed(1);
+  let interp='';
+  if(cos>0.99) interp='Very similar materials (θ='+deg+'°)';
+  else if(cos>0.9) interp='Similar materials (θ='+deg+'°)';
+  else if(cos>0.5) interp='Moderately similar (θ='+deg+'°)';
+  else interp='Dissimilar materials (θ='+deg+'°)';
+  document.getElementById('cosInterp').textContent=interp;
+}
+computeVectors();
+
+// ── GRADIENT DESCENT ──
+let gdHistory=[];
+let gdAnimId=null;
+
+function loss(w,target){return Math.pow(w-target,2)*0.5+0.1*Math.sin(3*w)}
+function dloss(w,target){return (w-target)+0.3*Math.cos(3*w)}
+
+function runGD(){
+  if(gdAnimId) cancelAnimationFrame(gdAnimId);
+  const lr=+document.getElementById('lr').value;
+  const w0=+document.getElementById('w0').value;
+  const target=+document.getElementById('target').value;
+  const maxIter=+document.getElementById('maxIter').value;
+  gdHistory=[];
+  let w=w0;
+  for(let i=0;i<maxIter;i++){
+    gdHistory.push({iter:i,w,l:loss(w,target)});
+    const grad=dloss(w,target);
+    w=w-lr*grad;
+  }
+  gdHistory.push({iter:maxIter,w,l:loss(w,target)});
+  const last=gdHistory[gdHistory.length-1];
+  document.getElementById('finalW').textContent=last.w.toFixed(4);
+  document.getElementById('finalL').textContent=last.l.toFixed(6);
+  document.getElementById('finalIter').textContent=maxIter;
+  drawGDCanvas();
+}
+
+function resetGD(){
+  if(gdAnimId) cancelAnimationFrame(gdAnimId);
+  gdHistory=[];
+  document.getElementById('finalW').textContent='–';
+  document.getElementById('finalL').textContent='–';
+  document.getElementById('finalIter').textContent='–';
+  drawGDCanvas();
+}
+
+function drawGDCanvas(){
+  const canvas=document.getElementById('gdCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  canvas.width=W*dpr; canvas.height=220*dpr;
+  canvas.style.width=W+'px'; canvas.style.height='220px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,220);
+
+  const target=+document.getElementById('target').value;
+  const pad={l:48,r:20,t:16,b:36};
+  const cw=W-pad.l-pad.r, ch=220-pad.t-pad.b;
+
+  // Loss curve
+  const wx=Array.from({length:200},(_,i)=>-4+i*8/199);
+  const ly=wx.map(w=>loss(w,target));
+  const lmin=Math.min(...ly), lmax=Math.max(...ly);
+  const toX=w=>(pad.l+(w+4)/8*cw);
+  const toY=l=>(pad.t+ch-(l-lmin)/(lmax-lmin+1e-10)*ch);
+
+  // Grid
+  ctx.strokeStyle='rgba(26,26,46,.06)';
+  ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*ch/4;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+  }
+
+  // Loss curve fill
+  ctx.beginPath();
+  ctx.moveTo(toX(wx[0]),toY(ly[0]));
+  wx.forEach((_,i)=>{if(i>0)ctx.lineTo(toX(wx[i]),toY(ly[i]))});
+  ctx.lineTo(toX(wx[199]),pad.t+ch);
+  ctx.lineTo(toX(wx[0]),pad.t+ch);
+  ctx.closePath();
+  ctx.fillStyle='rgba(91,141,184,.08)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(toX(wx[0]),toY(ly[0]));
+  wx.forEach((_,i)=>{if(i>0)ctx.lineTo(toX(wx[i]),toY(ly[i]))});
+  ctx.strokeStyle='#5b8db8';ctx.lineWidth=2;ctx.stroke();
+
+  // GD path
+  if(gdHistory.length>1){
+    ctx.beginPath();
+    ctx.moveTo(toX(gdHistory[0].w),toY(gdHistory[0].l));
+    gdHistory.forEach((p,i)=>{if(i>0)ctx.lineTo(toX(p.w),toY(p.l))});
+    ctx.strokeStyle='#0f6e56';ctx.lineWidth=2;ctx.stroke();
+
+    gdHistory.forEach((p,i)=>{
+      ctx.beginPath();
+      ctx.arc(toX(p.w),toY(p.l),i===0?6:3,0,Math.PI*2);
+      ctx.fillStyle=i===0?'#854f0b':i===gdHistory.length-1?'#993c1d':'#0f6e56';
+      ctx.fill();
+    });
+  }
+
+  // Axes
+  ctx.strokeStyle='rgba(26,26,46,.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+ch);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t+ch);ctx.lineTo(pad.l+cw,pad.t+ch);ctx.stroke();
+
+  // Labels
+  ctx.fillStyle='#7a7a9a';ctx.font='10px IBM Plex Mono, monospace';
+  ctx.textAlign='center';ctx.fillText('w (parameter)',pad.l+cw/2,220-4);
+  ctx.save();ctx.translate(12,pad.t+ch/2);ctx.rotate(-Math.PI/2);
+  ctx.fillText('Loss L(w)',0,0);ctx.restore();
+}
+
+window.addEventListener('load',()=>{drawGDCanvas();runGD()});
+window.addEventListener('resize',drawGDCanvas);
+
+// ── METRICS ──
+function computeMetrics(){
+  const trueArr=document.getElementById('trueVals').value.trim().split('\n').map(Number).filter(v=>!isNaN(v));
+  const predArr=document.getElementById('predVals').value.trim().split('\n').map(Number).filter(v=>!isNaN(v));
+  const n=Math.min(trueArr.length,predArr.length);
+  if(n<2){alert('Please enter at least 2 valid values in each column.');return;}
+  const t=trueArr.slice(0,n), p=predArr.slice(0,n);
+
+  const mae=t.reduce((s,v,i)=>s+Math.abs(v-p[i]),0)/n;
+  const rmse=Math.sqrt(t.reduce((s,v,i)=>s+Math.pow(v-p[i],2),0)/n);
+  const meanT=t.reduce((s,v)=>s+v,0)/n;
+  const ssTot=t.reduce((s,v)=>s+Math.pow(v-meanT,2),0);
+  const ssRes=t.reduce((s,v,i)=>s+Math.pow(v-p[i],2),0);
+  const r2=1-ssRes/ssTot;
+
+  document.getElementById('maeVal').textContent=mae.toFixed(4);
+  document.getElementById('rmseVal').textContent=rmse.toFixed(4);
+  document.getElementById('r2Val').textContent=r2.toFixed(4);
+
+  document.getElementById('maeInterp').textContent=mae<0.1?'Excellent':mae<0.2?'Good':mae<0.5?'Acceptable':'Poor';
+  document.getElementById('rmseInterp').textContent=rmse<0.15?'Excellent':rmse<0.3?'Good':rmse<0.6?'Acceptable':'Poor';
+  document.getElementById('r2Interp').textContent=r2>0.97?'Excellent':r2>0.9?'Good':r2>0.7?'Acceptable':'Poor';
+
+  document.getElementById('metricsResults').style.display='grid';
+  document.getElementById('scatterWrap').style.display='block';
+  drawScatter(t,p,r2);
+}
+
+function drawScatter(t,p,r2){
+  const canvas=document.getElementById('scatterCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const size=Math.min(canvas.parentElement.clientWidth,320);
+  canvas.width=size*dpr;canvas.height=size*0.85*dpr;
+  canvas.style.width=size+'px';canvas.style.height=(size*0.85)+'px';
+  const W=size,H=size*0.85;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const pad=36;
+  const all=[...t,...p];
+  const mn=Math.min(...all)-0.2,mx=Math.max(...all)+0.2;
+  const sc=v=>(pad+(v-mn)/(mx-mn)*(W-2*pad));
+  const sy=v=>(H-pad-(v-mn)/(mx-mn)*(H-2*pad));
+
+  // Grid
+  ctx.strokeStyle='rgba(26,26,46,.06)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const x=pad+i*(W-2*pad)/4,y=pad+i*(H-2*pad)/4;
+    ctx.beginPath();ctx.moveTo(x,pad);ctx.lineTo(x,H-pad);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();
+  }
+
+  // Parity line
+  ctx.beginPath();ctx.moveTo(sc(mn),sy(mn));ctx.lineTo(sc(mx),sy(mx));
+  ctx.strokeStyle='rgba(26,26,46,.2)';ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Points
+  t.forEach((tv,i)=>{
+    ctx.beginPath();ctx.arc(sc(tv),sy(p[i]),5,0,Math.PI*2);
+    ctx.fillStyle='#1a5276';ctx.globalAlpha=0.75;ctx.fill();ctx.globalAlpha=1;
+  });
+
+  // Axes
+  ctx.strokeStyle='rgba(26,26,46,.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad,pad);ctx.lineTo(pad,H-pad);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad,H-pad);ctx.lineTo(W-pad,H-pad);ctx.stroke();
+
+  // Labels
+  ctx.fillStyle='#7a7a9a';ctx.font='10px IBM Plex Mono';
+  ctx.textAlign='center';ctx.fillText('True (DFT)',W/2,H-4);
+  ctx.save();ctx.translate(12,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('Predicted (ML)',0,0);ctx.restore();
+  ctx.textAlign='right';
+  ctx.fillStyle='#0f6e56';ctx.font='bold 11px IBM Plex Mono';
+  ctx.fillText('R²='+r2.toFixed(3),W-pad-4,pad+12);
+}
+
+// ── QUIZ ──
+let score=0,done=[false,false,false];
+const FB={
+  1:{ok:'✅ Cosine similarity near 1 means the vectors point in the same direction — the materials have very similar relative feature profiles.',
+     no:'❌ Cosine similarity measures the angle between vectors in feature space. Near 1 means nearly parallel → very similar materials.'},
+  2:{ok:'✅ Oscillating loss means the learning rate is too large — steps overshoot the minimum. Reduce η.',
+     no:'❌ Oscillation is caused by too large a learning rate. Reducing η gives smaller, stable steps toward the minimum.'},
+  3:{ok:'✅ RMSE squares the errors before averaging, so large errors contribute disproportionately. MAE treats all errors equally.',
+     no:'❌ RMSE penalises large errors more because it squares them before averaging. MAE treats all errors equally (absolute value).'}
+};
+
+function qa(qIdx,optIdx,isCorrect){
+  if(done[qIdx-1])return;
+  done[qIdx-1]=true;
+  const opts=document.querySelectorAll(`#qq${qIdx} .qz-opt`);
+  opts.forEach(o=>{o.disabled=true});
+  opts[optIdx].classList.add(isCorrect?'correct':'wrong');
+  if(!isCorrect) opts.forEach(o=>{if(o.onclick&&o.onclick.toString().includes('true'))o.classList.add('correct')});
+  const fb=document.getElementById(`qf${qIdx}`);
+  fb.textContent=isCorrect?FB[qIdx].ok:FB[qIdx].no;
+  fb.className='qz-fb show '+(isCorrect?'ok':'no');
+  if(isCorrect){score++;document.getElementById('score').textContent=score}
+}
+
+function resetQuiz(){
+  score=0;done=[false,false,false];
+  document.getElementById('score').textContent='0';
+  for(let i=1;i<=3;i++){
+    document.querySelectorAll(`#qq${i} .qz-opt`).forEach(o=>{o.disabled=false;o.className='qz-opt'});
+    const fb=document.getElementById(`qf${i}`);fb.className='qz-fb';fb.textContent='';
+  }
+}
+</script>
+</body>
+</html>
