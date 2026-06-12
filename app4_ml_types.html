@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>App 4 — ML Types Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#f7f6f2;--surface:#fff;--border:rgba(26,26,46,.12);
+    --accent:#1a5276;--al:#d4e6f1;--am:#5b8db8;
+    --teal:#0f6e56;--tl:#e1f5ee;
+    --amber:#854f0b;--aml:#faeeda;
+    --coral:#993c1d;--cl:#faece7;
+    --purple:#4a235a;--pl:#f0e8f5;
+    --ink:#1a1a2e;--is:#3d3d5c;--im:#7a7a9a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;
+       font-size:14px;line-height:1.65;padding:20px 16px}
+  h1{font-size:17px;font-weight:600;margin-bottom:3px}
+  .sub{color:var(--im);font-size:12px;margin-bottom:20px}
+
+  .tabs{display:flex;gap:5px;margin-bottom:18px;flex-wrap:wrap}
+  .tab{padding:7px 14px;border-radius:6px;border:1px solid var(--border);
+       background:var(--surface);color:var(--im);cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;transition:all .2s}
+  .tab.active{color:#fff;border-color:transparent;font-weight:600}
+  .tab.t-sup{}.tab.t-sup.active{background:var(--accent)}
+  .tab.t-uns.active{background:var(--teal)}
+  .tab.t-rl.active{background:var(--purple)}
+  .tab.t-quiz.active{background:var(--amber)}
+  .panel{display:none}.panel.active{display:block}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px}
+  .card h3{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+           color:var(--im);margin-bottom:14px;font-family:'IBM Plex Mono',monospace}
+
+  /* SUPERVISED */
+  .data-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+  .data-table th{background:var(--al);color:var(--accent);padding:7px 10px;
+                 text-align:left;font-family:'IBM Plex Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)}
+  .data-table td{padding:7px 10px;border-bottom:.5px solid var(--border);color:var(--is);font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .data-table tr.new-row td{background:var(--aml);color:var(--amber);font-weight:600}
+  .data-table tr:last-child td{border-bottom:none}
+
+  .pred-box{background:var(--al);border:1px solid var(--am);border-radius:8px;
+            padding:14px;margin-top:10px;text-align:center}
+  .pred-label{font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;
+              text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+  .pred-val{font-size:28px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--accent)}
+  .pred-sub{font-size:11px;color:var(--am);margin-top:4px}
+
+  .sl-row{margin-bottom:10px}
+  .sl-row label{display:flex;justify-content:space-between;font-size:12px;color:var(--is);margin-bottom:4px}
+  .sl-row label span{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--accent)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+
+  canvas{border-radius:8px;width:100%;display:block}
+
+  /* UNSUPERVISED */
+  .cluster-legend{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--is)}
+  .legend-dot{width:12px;height:12px;border-radius:50%}
+
+  .btn-row{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+  .btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;
+       font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;transition:all .15s}
+  .btn-sup{background:var(--accent);color:#fff}
+  .btn-uns{background:var(--teal);color:#fff}
+  .btn-rl{background:var(--purple);color:#fff}
+  .btn-secondary{background:var(--bg);color:var(--is);border:1px solid var(--border)}
+
+  /* REINFORCEMENT */
+  .env-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:12px 0}
+  .env-cell{border-radius:6px;padding:10px 4px;text-align:center;
+            font-family:'IBM Plex Mono',monospace;font-size:11px;
+            border:1px solid var(--border);background:var(--surface);
+            cursor:pointer;transition:all .2s;min-height:56px;
+            display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .env-cell.agent{border-color:var(--purple);background:var(--pl)}
+  .env-cell.visited{border-color:var(--am);background:var(--al)}
+  .env-cell.reward-pos{border-color:var(--teal);background:var(--tl)}
+  .env-cell.reward-neg{border-color:var(--coral);background:var(--cl)}
+  .env-cell .cell-icon{font-size:18px}
+  .env-cell .cell-label{font-size:9px;color:var(--im)}
+
+  .rl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .rl-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+           padding:10px;text-align:center}
+  .rl-stat-label{font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em;
+                 text-transform:uppercase;color:var(--im);margin-bottom:4px}
+  .rl-stat-val{font-size:18px;font-weight:600;font-family:'IBM Plex Mono',monospace;color:var(--purple)}
+  .rl-log{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+          padding:10px;font-family:'IBM Plex Mono',monospace;font-size:11px;
+          color:var(--is);height:80px;overflow-y:auto;margin-top:10px;line-height:1.8}
+
+  /* QUIZ */
+  .qz{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px}
+  .qz-q{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:10px;line-height:1.5}
+  .qz-opts{display:flex;flex-direction:column;gap:6px}
+  .qz-opt{padding:8px 12px;border:1px solid var(--border);border-radius:6px;
+          background:transparent;cursor:pointer;font-size:13px;color:var(--is);
+          text-align:left;width:100%;font-family:'IBM Plex Sans',sans-serif;transition:all .15s}
+  .qz-opt:hover{border-color:var(--am);background:var(--al)}
+  .qz-opt.correct{border-color:var(--teal);background:var(--tl);color:var(--teal)}
+  .qz-opt.wrong{border-color:var(--coral);background:var(--cl);color:var(--coral)}
+  .qz-fb{margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;display:none}
+  .qz-fb.show{display:block}
+  .qz-fb.ok{background:var(--tl);color:var(--teal)}
+  .qz-fb.no{background:var(--cl);color:var(--coral)}
+  .score-row{display:flex;justify-content:space-between;align-items:center;
+             padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+  .reset-btn{padding:6px 16px;background:var(--amber);color:#fff;border:none;
+             border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>🤖 ML Types Explorer</h1>
+<p class="sub">Post 4 companion · Supervised · Unsupervised · Reinforcement Learning</p>
+
+<div class="tabs">
+  <button class="tab t-sup active" onclick="switchTab('sup',this)">🎯 Supervised</button>
+  <button class="tab t-uns" onclick="switchTab('uns',this)">🔍 Unsupervised</button>
+  <button class="tab t-rl" onclick="switchTab('rl',this)">🎮 Reinforcement</button>
+  <button class="tab t-quiz" onclick="switchTab('quiz',this)">📝 Quiz</button>
+</div>
+
+<!-- ══ TAB 1: SUPERVISED ══ -->
+<div class="panel active" id="sup">
+  <div class="card">
+    <h3>Supervised Regression — Band Gap Prediction</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:12px">
+      A simple linear model trained on 5 DFT examples. Adjust the new material's
+      features and see the predicted band gap.
+    </p>
+
+    <table class="data-table" id="trainingTable">
+      <thead>
+        <tr><th>Material</th><th>Lattice a (Å)</th><th>ΔEN</th><th>Eg DFT (eV)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ZnO</td><td>3.25</td><td>1.79</td><td>3.44</td></tr>
+        <tr><td>GaAs</td><td>5.65</td><td>0.40</td><td>1.42</td></tr>
+        <tr><td>Si</td><td>5.43</td><td>0.00</td><td>1.12</td></tr>
+        <tr><td>TiO₂</td><td>4.59</td><td>1.90</td><td>3.05</td></tr>
+        <tr><td>InP</td><td>5.87</td><td>0.11</td><td>1.34</td></tr>
+        <tr class="new-row"><td>❓ New</td><td id="newA">–</td><td id="newEN">–</td><td>Predict →</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sl-row">
+      <label>Lattice constant a (Å) <span id="aVal">4.0</span></label>
+      <input type="range" min="3.0" max="6.5" step="0.05" value="4.0" id="aSlider" oninput="predictBandGap()"/>
+    </div>
+    <div class="sl-row">
+      <label>Electronegativity diff ΔEN <span id="enVal">1.0</span></label>
+      <input type="range" min="0.0" max="2.5" step="0.05" value="1.0" id="enSlider" oninput="predictBandGap()"/>
+    </div>
+
+    <div class="pred-box">
+      <div class="pred-label">Predicted Band Gap</div>
+      <div class="pred-val" id="predEg">–</div>
+      <div class="pred-sub" id="predInterp">–</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Regression line (a vs Eg)</h3>
+    <canvas id="regCanvas" height="200"></canvas>
+  </div>
+</div>
+
+<!-- ══ TAB 2: UNSUPERVISED ══ -->
+<div class="panel" id="uns">
+  <div class="card">
+    <h3>K-Means Clustering — Materials in Feature Space</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:12px">
+      30 materials plotted by two features (band gap vs lattice constant).
+      Click "Cluster" to run K-Means and discover natural groups.
+    </p>
+
+    <div class="btn-row">
+      <button class="btn btn-uns" onclick="runKMeans()">▶ Cluster (K=3)</button>
+      <button class="btn btn-secondary" onclick="resetClusters()">↺ Reset</button>
+    </div>
+
+    <div class="cluster-legend" id="clusterLegend" style="display:none">
+      <div class="legend-item"><div class="legend-dot" style="background:#1a5276"></div>Group 1 (wide gap)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#0f6e56"></div>Group 2 (medium gap)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#854f0b"></div>Group 3 (narrow/metal)</div>
+    </div>
+
+    <canvas id="clusterCanvas" height="260"></canvas>
+
+    <div id="clusterInfo" style="display:none;margin-top:10px;padding:12px;background:var(--tl);border:1px solid var(--teal);border-radius:8px;font-size:13px;color:var(--teal)">
+      ✓ 3 natural groups discovered — without any labels! The algorithm found
+      wide-gap insulators, medium-gap semiconductors, and narrow-gap/metals
+      purely from the data structure.
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 3: REINFORCEMENT ══ -->
+<div class="panel" id="rl">
+  <div class="card">
+    <h3>RL Agent — Synthesis Optimisation Game</h3>
+    <p style="font-size:13px;color:var(--im);margin-bottom:12px">
+      The agent 🤖 explores a 5×5 grid of synthesis conditions (temperature × pressure).
+      It gets +10 for stable materials (🟢), −5 for unstable (🔴), −1 per step.
+      Watch it learn to find the best conditions.
+    </p>
+
+    <div class="btn-row">
+      <button class="btn btn-rl" onclick="runRLStep()">▶ One Step</button>
+      <button class="btn btn-rl" onclick="runRLAuto()">⏩ Auto Run</button>
+      <button class="btn btn-secondary" onclick="resetRL()">↺ Reset</button>
+    </div>
+
+    <div class="env-grid" id="envGrid"></div>
+
+    <div class="rl-stats">
+      <div class="rl-stat"><div class="rl-stat-label">Steps</div><div class="rl-stat-val" id="rlSteps">0</div></div>
+      <div class="rl-stat"><div class="rl-stat-label">Total Reward</div><div class="rl-stat-val" id="rlReward">0</div></div>
+      <div class="rl-stat"><div class="rl-stat-label">Best Found</div><div class="rl-stat-val" id="rlBest">–</div></div>
+    </div>
+
+    <div class="rl-log" id="rlLog">Agent initialised. Press Step or Auto Run...</div>
+  </div>
+</div>
+
+<!-- ══ TAB 4: QUIZ ══ -->
+<div class="panel" id="quiz">
+
+  <div class="qz" id="qq1">
+    <div class="qz-q">1. You want to predict whether a compound is a metal or insulator using DFT labels. Which ML type and sub-type?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(1,0,false)">Unsupervised clustering</button>
+      <button class="qz-opt" onclick="qa(1,1,false)">Supervised regression</button>
+      <button class="qz-opt" onclick="qa(1,2,true)">Supervised classification</button>
+      <button class="qz-opt" onclick="qa(1,3,false)">Reinforcement learning</button>
+    </div>
+    <div class="qz-fb" id="qf1"></div>
+  </div>
+
+  <div class="qz" id="qq2">
+    <div class="qz-q">2. In reinforcement learning, what is the "reward" in a materials science context?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(2,0,false)">The training dataset size</button>
+      <button class="qz-opt" onclick="qa(2,1,true)">A score indicating if the synthesised material has the desired property</button>
+      <button class="qz-opt" onclick="qa(2,2,false)">The learning rate η</button>
+      <button class="qz-opt" onclick="qa(2,3,false)">The number of DFT calculations run</button>
+    </div>
+    <div class="qz-fb" id="qf2"></div>
+  </div>
+
+  <div class="qz" id="qq3">
+    <div class="qz-q">3. PCA (Principal Component Analysis) belongs to which ML type?</div>
+    <div class="qz-opts">
+      <button class="qz-opt" onclick="qa(3,0,false)">Supervised — it predicts labels</button>
+      <button class="qz-opt" onclick="qa(3,1,true)">Unsupervised — it finds structure without labels</button>
+      <button class="qz-opt" onclick="qa(3,2,false)">Reinforcement — it uses rewards</button>
+      <button class="qz-opt" onclick="qa(3,3,false)">Semi-supervised — it uses partial labels</button>
+    </div>
+    <div class="qz-fb" id="qf3"></div>
+  </div>
+
+  <div class="score-row">
+    <div>
+      <div style="font-size:10px;color:var(--im);margin-bottom:3px;font-family:'IBM Plex Mono',monospace;letter-spacing:.08em">SCORE</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--ink)"><span id="score">0</span> / 3</div>
+    </div>
+    <button class="reset-btn" onclick="resetQuiz()">↺ Reset</button>
+  </div>
+</div>
+
+<script>
+// ── TABS ──
+function switchTab(id,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='uns')drawClusters();
+  if(id==='sup')drawRegression();
+}
+
+// ══ SUPERVISED ══
+const trainData=[
+  {a:3.25,en:1.79,eg:3.44},{a:5.65,en:0.40,eg:1.42},
+  {a:5.43,en:0.00,eg:1.12},{a:4.59,en:1.90,eg:3.05},{a:5.87,en:0.11,eg:1.34}
+];
+
+function predictBandGap(){
+  const a=+document.getElementById('aSlider').value;
+  const en=+document.getElementById('enSlider').value;
+  document.getElementById('aVal').textContent=a.toFixed(2);
+  document.getElementById('enVal').textContent=en.toFixed(2);
+  document.getElementById('newA').textContent=a.toFixed(2);
+  document.getElementById('newEN').textContent=en.toFixed(2);
+  // Simple linear model: Eg ≈ w0 + w1*a + w2*en
+  const w0=2.8, w1=-0.28, w2=0.65;
+  let eg=w0+w1*a+w2*en;
+  eg=Math.max(0,Math.min(5,eg));
+  document.getElementById('predEg').textContent=eg.toFixed(2)+' eV';
+  let interp='';
+  if(eg<0.5) interp='→ Likely a metal or semi-metal';
+  else if(eg<1.5) interp='→ Narrow-gap semiconductor';
+  else if(eg<3.0) interp='→ Semiconductor (solar cell range)';
+  else interp='→ Wide-gap semiconductor / insulator';
+  document.getElementById('predInterp').textContent=interp;
+  drawRegression(a,eg);
+}
+
+function drawRegression(newA,newEg){
+  const canvas=document.getElementById('regCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  canvas.width=W*dpr;canvas.height=200*dpr;
+  canvas.style.width=W+'px';canvas.style.height='200px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,200);
+
+  const pad={l:44,r:16,t:14,b:32};
+  const cw=W-pad.l-pad.r,ch=200-pad.t-pad.b;
+  const toX=a=>(pad.l+(a-3.0)/(6.5-3.0)*cw);
+  const toY=e=>(pad.t+ch-(e/5)*ch);
+
+  // Grid
+  ctx.strokeStyle='rgba(26,26,46,.06)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*ch/4;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+  }
+
+  // Regression line
+  ctx.beginPath();
+  for(let a=3.0;a<=6.5;a+=0.1){
+    const e=Math.max(0,2.8-0.28*a+0.65*1.0);
+    const x=toX(a),y=toY(e);
+    a===3.0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='rgba(91,141,184,.4)';ctx.lineWidth=1.5;ctx.stroke();
+
+  // Training points
+  trainData.forEach(d=>{
+    ctx.beginPath();ctx.arc(toX(d.a),toY(d.eg),5,0,Math.PI*2);
+    ctx.fillStyle='#1a5276';ctx.fill();
+  });
+
+  // New point
+  if(newA!==undefined){
+    ctx.beginPath();ctx.arc(toX(newA),toY(newEg),7,0,Math.PI*2);
+    ctx.fillStyle='#854f0b';ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle='rgba(26,26,46,.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+ch);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t+ch);ctx.lineTo(pad.l+cw,pad.t+ch);ctx.stroke();
+
+  // Labels
+  ctx.fillStyle='#7a7a9a';ctx.font='10px IBM Plex Mono';
+  ctx.textAlign='center';ctx.fillText('Lattice constant a (Å)',pad.l+cw/2,200-4);
+  ctx.save();ctx.translate(12,pad.t+ch/2);ctx.rotate(-Math.PI/2);ctx.fillText('Eg (eV)',0,0);ctx.restore();
+
+  // Legend
+  ctx.fillStyle='#1a5276';ctx.beginPath();ctx.arc(pad.l+cw-60,pad.t+10,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#7a7a9a';ctx.font='10px IBM Plex Mono';ctx.textAlign='left';
+  ctx.fillText('Training',pad.l+cw-50,pad.t+14);
+  if(newA!==undefined){
+    ctx.fillStyle='#854f0b';ctx.beginPath();ctx.arc(pad.l+cw-60,pad.t+26,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#7a7a9a';ctx.fillText('New',pad.l+cw-50,pad.t+30);
+  }
+}
+
+// ══ UNSUPERVISED / K-MEANS ══
+const materials=[];
+let clustered=false;
+const clusterColors=['#1a5276','#0f6e56','#854f0b'];
+
+function generateMaterials(){
+  materials.length=0;
+  // Group 1: wide gap (insulators)
+  for(let i=0;i<10;i++) materials.push({a:3.0+Math.random()*1.5,eg:3.0+Math.random()*2,c:-1});
+  // Group 2: medium (semiconductors)
+  for(let i=0;i<10;i++) materials.push({a:4.5+Math.random()*1.5,eg:1.0+Math.random()*1.5,c:-1});
+  // Group 3: narrow/metal
+  for(let i=0;i<10;i++) materials.push({a:5.5+Math.random()*1.5,eg:0+Math.random()*1.0,c:-1});
+}
+
+function drawClusters(){
+  const canvas=document.getElementById('clusterCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  canvas.width=W*dpr;canvas.height=260*dpr;
+  canvas.style.width=W+'px';canvas.style.height='260px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,260);
+
+  const pad={l:44,r:16,t:14,b:32};
+  const cw=W-pad.l-pad.r,ch=260-pad.t-pad.b;
+  const toX=a=>(pad.l+(a-2.5)/(8-2.5)*cw);
+  const toY=e=>(pad.t+ch-(e/5.5)*ch);
+
+  ctx.strokeStyle='rgba(26,26,46,.06)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad.t+i*ch/4;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+  }
+
+  materials.forEach(m=>{
+    ctx.beginPath();ctx.arc(toX(m.a),toY(m.eg),6,0,Math.PI*2);
+    ctx.fillStyle=m.c>=0?clusterColors[m.c]+'cc':'rgba(26,26,46,.3)';
+    ctx.fill();
+    if(m.c>=0){ctx.strokeStyle=clusterColors[m.c];ctx.lineWidth=1.5;ctx.stroke();}
+  });
+
+  ctx.strokeStyle='rgba(26,26,46,.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+ch);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t+ch);ctx.lineTo(pad.l+cw,pad.t+ch);ctx.stroke();
+
+  ctx.fillStyle='#7a7a9a';ctx.font='10px IBM Plex Mono';
+  ctx.textAlign='center';ctx.fillText('Lattice constant a (Å)',pad.l+cw/2,260-4);
+  ctx.save();ctx.translate(12,pad.t+ch/2);ctx.rotate(-Math.PI/2);ctx.fillText('Band gap Eg (eV)',0,0);ctx.restore();
+}
+
+function runKMeans(){
+  // Simple K-Means: 3 iterations
+  let centroids=[{a:3.5,eg:4.0},{a:5.0,eg:1.5},{a:6.5,eg:0.4}];
+  for(let iter=0;iter<10;iter++){
+    materials.forEach(m=>{
+      let best=0,bestD=Infinity;
+      centroids.forEach((c,i)=>{
+        const d=Math.pow(m.a-c.a,2)+Math.pow(m.eg-c.eg,2);
+        if(d<bestD){bestD=d;best=i;}
+      });
+      m.c=best;
+    });
+    centroids=centroids.map((_,i)=>{
+      const pts=materials.filter(m=>m.c===i);
+      if(!pts.length)return centroids[i];
+      return{a:pts.reduce((s,m)=>s+m.a,0)/pts.length,
+             eg:pts.reduce((s,m)=>s+m.eg,0)/pts.length};
+    });
+  }
+  clustered=true;
+  drawClusters();
+  document.getElementById('clusterLegend').style.display='flex';
+  document.getElementById('clusterInfo').style.display='block';
+}
+
+function resetClusters(){
+  clustered=false;
+  materials.forEach(m=>m.c=-1);
+  drawClusters();
+  document.getElementById('clusterLegend').style.display='none';
+  document.getElementById('clusterInfo').style.display='none';
+}
+
+// ══ REINFORCEMENT LEARNING ══
+const GRID=5;
+const REWARDS=[
+  [0,-1,0,-1,0],[-1,0,-5,0,-1],[0,-5,0,10,-1],[-1,0,10,0,-1],[0,-1,-1,-1,0]
+];
+const ICONS=[
+  ['⬜','⬜','⬜','⬜','⬜'],['⬜','⬜','❌','⬜','⬜'],
+  ['⬜','❌','⬜','✅','⬜'],['⬜','⬜','✅','⬜','⬜'],['⬜','⬜','⬜','⬜','⬜']
+];
+let agentPos={r:0,c:0};
+let rlSteps=0,rlReward=0,rlBest=-Infinity,rlAutoId=null;
+let visited=new Set();
+
+function buildGrid(){
+  const grid=document.getElementById('envGrid');
+  grid.innerHTML='';
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const cell=document.createElement('div');
+      cell.className='env-cell'+(agentPos.r===r&&agentPos.c===c?' agent':'')
+        +(REWARDS[r][c]===10?' reward-pos':REWARDS[r][c]===-5?' reward-neg':'')
+        +(visited.has(`${r},${c}`)&&!(agentPos.r===r&&agentPos.c===c)?' visited':'');
+      const icon=document.createElement('div');
+      icon.className='cell-icon';
+      icon.textContent=agentPos.r===r&&agentPos.c===c?'🤖':ICONS[r][c];
+      const lbl=document.createElement('div');
+      lbl.className='cell-label';
+      lbl.textContent=REWARDS[r][c]===10?'+10':REWARDS[r][c]===-5?'-5':REWARDS[r][c]===-1?'-1':'';
+      cell.appendChild(icon);cell.appendChild(lbl);
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function runRLStep(){
+  visited.add(`${agentPos.r},${agentPos.c}`);
+  // ε-greedy: mostly random but slightly biased toward reward
+  const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+  let bestDir=null,bestR=-Infinity;
+  dirs.forEach(d=>{
+    const nr=agentPos.r+d[0],nc=agentPos.c+d[1];
+    if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID){
+      const r=REWARDS[nr][nc]+(Math.random()-0.3)*3;
+      if(r>bestR){bestR=r;bestDir=d;}
+    }
+  });
+  if(!bestDir)return;
+  agentPos.r+=bestDir[0];agentPos.c+=bestDir[1];
+  const r=REWARDS[agentPos.r][agentPos.c];
+  rlSteps++;rlReward+=r-1;
+  if(r===10&&rlBest<rlReward)rlBest=rlReward;
+
+  document.getElementById('rlSteps').textContent=rlSteps;
+  document.getElementById('rlReward').textContent=rlReward;
+  document.getElementById('rlBest').textContent=rlBest>-Infinity?rlBest:'–';
+
+  const log=document.getElementById('rlLog');
+  const msg=r===10?`Step ${rlSteps}: ✅ Found STABLE material! Reward +10`:
+            r===-5?`Step ${rlSteps}: ❌ Unstable! Reward -5`:
+            `Step ${rlSteps}: → moved, reward -1`;
+  log.innerHTML=msg+'<br>'+log.innerHTML;
+
+  buildGrid();
+}
+
+function runRLAuto(){
+  if(rlAutoId){clearInterval(rlAutoId);rlAutoId=null;return;}
+  rlAutoId=setInterval(()=>{
+    runRLStep();
+    if(rlSteps>=50){clearInterval(rlAutoId);rlAutoId=null;}
+  },300);
+}
+
+function resetRL(){
+  if(rlAutoId){clearInterval(rlAutoId);rlAutoId=null;}
+  agentPos={r:0,c:0};rlSteps=0;rlReward=0;rlBest=-Infinity;visited=new Set();
+  document.getElementById('rlSteps').textContent='0';
+  document.getElementById('rlReward').textContent='0';
+  document.getElementById('rlBest').textContent='–';
+  document.getElementById('rlLog').innerHTML='Agent reset. Press Step or Auto Run...';
+  buildGrid();
+}
+
+// ══ QUIZ ══
+let score=0,done=[false,false,false];
+const FB={
+  1:{ok:'✅ Metal vs insulator is a discrete category → supervised classification. Labels come from DFT.',
+     no:'❌ Predicting a category (metal/insulator) with DFT labels → supervised classification.'},
+  2:{ok:'✅ In materials RL, the reward is a score for achieving the target property — positive for success, negative for failure.',
+     no:'❌ The reward signals whether the agent achieved its goal — in materials science, whether the synthesised material has the desired property.'},
+  3:{ok:'✅ PCA finds structure (variance axes) in unlabelled data — classic unsupervised dimensionality reduction.',
+     no:'❌ PCA requires no labels and finds the main axes of variance in the data → unsupervised learning.'}
+};
+
+function qa(qIdx,optIdx,isCorrect){
+  if(done[qIdx-1])return;
+  done[qIdx-1]=true;
+  const opts=document.querySelectorAll(`#qq${qIdx} .qz-opt`);
+  opts.forEach(o=>{o.disabled=true});
+  opts[optIdx].classList.add(isCorrect?'correct':'wrong');
+  if(!isCorrect)opts.forEach(o=>{if(o.onclick&&o.onclick.toString().includes('true'))o.classList.add('correct')});
+  const fb=document.getElementById(`qf${qIdx}`);
+  fb.textContent=isCorrect?FB[qIdx].ok:FB[qIdx].no;
+  fb.className='qz-fb show '+(isCorrect?'ok':'no');
+  if(isCorrect){score++;document.getElementById('score').textContent=score;}
+}
+
+function resetQuiz(){
+  score=0;done=[false,false,false];
+  document.getElementById('score').textContent='0';
+  for(let i=1;i<=3;i++){
+    document.querySelectorAll(`#qq${i} .qz-opt`).forEach(o=>{o.disabled=false;o.className='qz-opt'});
+    const fb=document.getElementById(`qf${i}`);fb.className='qz-fb';fb.textContent='';
+  }
+}
+
+// Init
+generateMaterials();
+buildGrid();
+window.addEventListener('load',()=>{predictBandGap();drawClusters();});
+window.addEventListener('resize',()=>{drawRegression();drawClusters();});
+</script>
+</body>
+</html>
