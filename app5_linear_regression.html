@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App 5 — Linear Regression Explorer</title>
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2d3250;
+  --text: #e2e8f0;
+  --muted: #8896a8;
+  --green: #22c55e;
+  --blue: #3b82f6;
+  --purple: #a855f7;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --teal: #14b8a6;
+  --accent: #22c55e;
+}
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; font-size: 15px;
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg, #0f2d1a 0%, #0d1b35 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 1.2rem 1.5rem 1rem;
+  text-align: center;
+}
+.header-badge {
+  display: inline-block; background: rgba(34,197,94,.15);
+  border: 1px solid rgba(34,197,94,.3); color: var(--green);
+  font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; padding: .2rem .7rem; border-radius: 20px;
+  margin-bottom: .6rem;
+}
+.header h1 {
+  font-size: clamp(1.2rem, 3vw, 1.7rem);
+  font-weight: 700; color: #fff;
+  margin-bottom: .3rem;
+}
+.header p { color: var(--muted); font-size: .88rem; }
+
+/* ── Tab Nav ── */
+.tabs {
+  display: flex; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab {
+  flex: 1; min-width: 120px;
+  padding: .85rem 1rem; font-size: .88rem; font-weight: 600;
+  color: var(--muted); background: none; border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer; transition: color .2s, border-color .2s;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+/* ── Panels ── */
+.panel { display: none; padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+.panel.active { display: block; }
+
+/* ── Cards ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;
+}
+.card-title {
+  font-size: .8rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--green); margin-bottom: .8rem;
+}
+.card p { color: var(--muted); font-size: .9rem; line-height: 1.6; }
+
+/* ── Grid ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ── Sliders ── */
+.slider-row { margin: .6rem 0; }
+.slider-row label {
+  display: flex; justify-content: space-between;
+  font-size: .85rem; color: var(--muted); margin-bottom: .3rem;
+}
+.slider-row label span { color: var(--green); font-weight: 700; font-family: monospace; }
+input[type=range] {
+  width: 100%; accent-color: var(--green);
+  height: 4px; cursor: pointer;
+}
+
+/* ── Metrics row ── */
+.metrics-row { display: flex; gap: .8rem; flex-wrap: wrap; margin: .8rem 0; }
+.metric-chip {
+  flex: 1; min-width: 110px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: .6rem .9rem; text-align: center;
+}
+.metric-chip .mc-label { font-size: .72rem; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted); margin-bottom: .25rem; }
+.metric-chip .mc-value { font-size: 1.3rem; font-weight: 700; font-family: monospace; }
+
+/* ── Eq box ── */
+.eq {
+  background: #1a133a; border: 1px solid #5b21b6;
+  border-radius: 8px; padding: .8rem 1rem; margin: .8rem 0;
+  font-family: monospace; font-size: .9rem; color: #d8b4fe;
+  overflow-x: auto;
+}
+
+/* ── Canvas ── */
+canvas {
+  width: 100%; border-radius: 10px;
+  background: var(--surface2); display: block;
+}
+
+/* ── Table ── */
+.tbl-wrap { overflow-x: auto; margin: .8rem 0; }
+table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+th {
+  background: var(--surface2); color: var(--green);
+  padding: .5rem .7rem; text-align: left; font-weight: 600;
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+}
+td { padding: .5rem .7rem; border-bottom: 1px solid var(--border); color: var(--text); }
+tr:hover td { background: rgba(255,255,255,.03); }
+td.hi { color: var(--amber); font-weight: 700; }
+td.pred { color: var(--blue); font-weight: 600; }
+td.err { color: var(--muted); }
+td.good { color: var(--green); }
+td.bad  { color: var(--red); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: .5rem;
+  background: var(--green); color: #000;
+  border: none; border-radius: 8px;
+  padding: .6rem 1.2rem; font-size: .88rem; font-weight: 700;
+  cursor: pointer; transition: opacity .2s;
+}
+.btn:hover { opacity: .85; }
+.btn.secondary {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-row { display: flex; gap: .7rem; flex-wrap: wrap; margin: .8rem 0; }
+
+/* ── GD log ── */
+#gd-log {
+  background: #000; border-radius: 8px; padding: .8rem 1rem;
+  font-family: monospace; font-size: .82rem; color: #22c55e;
+  height: 160px; overflow-y: auto; border: 1px solid var(--border);
+}
+
+/* ── Quiz ── */
+.quiz-q { font-weight: 600; margin-bottom: .75rem; font-size: .95rem; }
+.quiz-opts { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .6rem; }
+.quiz-opt {
+  background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: .55rem .9rem; cursor: pointer;
+  font-size: .9rem; text-align: left; color: var(--text); transition: border-color .15s;
+}
+.quiz-opt:hover { border-color: var(--blue); }
+.quiz-opt.correct { background: rgba(34,197,94,.12); border-color: var(--green); color: var(--green); }
+.quiz-opt.wrong   { background: rgba(239,68,68,.1);  border-color: var(--red);   color: var(--red); }
+#quiz-score {
+  font-size: 1.1rem; font-weight: 700; text-align: center;
+  padding: 1rem; color: var(--amber); margin-top: .5rem;
+}
+
+/* ── Progress bar ── */
+.progress-track {
+  height: 6px; background: var(--surface2); border-radius: 3px; margin: .5rem 0;
+}
+.progress-fill {
+  height: 100%; border-radius: 3px; background: var(--green);
+  transition: width .4s ease;
+}
+
+/* ── Parity info ── */
+.parity-info {
+  font-size: .82rem; color: var(--muted); margin-top: .5rem; line-height: 1.6;
+}
+.dot-legend { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: .5rem 0; }
+.dot-legend span { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--muted); }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Feature importance bar ── */
+.feat-bar-wrap { margin: .5rem 0; }
+.feat-bar-label {
+  display: flex; justify-content: space-between;
+  font-size: .82rem; margin-bottom: .2rem;
+}
+.feat-bar-track { height: 18px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.feat-bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
+
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-badge">Post 5 Companion · Core Algorithms</div>
+  <h1>📐 Linear Regression Explorer</h1>
+  <p>Fit a band gap model live · explore the math · visualise gradient descent</p>
+</div>
+
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('model')">📊 Model</button>
+  <button class="tab" onclick="switchTab('gd')">🔄 Gradient Descent</button>
+  <button class="tab" onclick="switchTab('parity')">🎯 Parity Plot</button>
+  <button class="tab" onclick="switchTab('features')">🔬 Features</button>
+  <button class="tab" onclick="switchTab('quiz')">📝 Quiz</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANEL 1 — MODEL
+══════════════════════════════════════════ -->
+<div id="panel-model" class="panel active">
+
+  <div class="card">
+    <div class="card-title">📋 Dataset — Binary Semiconductors (DFT-PBE Band Gaps)</div>
+    <div class="tbl-wrap">
+      <table id="data-table">
+        <thead>
+          <tr><th>#</th><th>Compound</th><th>a (Å)</th><th>ΔEN</th><th>Val. e⁻</th><th>E<sub>g</sub> DFT (eV)</th><th>Ê<sub>g</sub> Pred. (eV)</th><th>|Error|</th></tr>
+        </thead>
+        <tbody id="data-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⚙️ Feature Selection</div>
+      <div style="margin:.4rem 0;">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer;margin:.3rem 0;">
+          <input type="checkbox" id="feat-a" checked onchange="refit()"> Lattice constant <em>a</em> (Å)
+        </label>
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer;margin:.3rem 0;">
+          <input type="checkbox" id="feat-den" checked onchange="refit()"> Electronegativity diff ΔEN
+        </label>
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer;margin:.3rem 0;">
+          <input type="checkbox" id="feat-val" onchange="refit()"> Valence electrons
+        </label>
+      </div>
+      <div class="card-title" style="margin-top:.8rem;">🔒 Regularisation</div>
+      <label style="font-size:.85rem;color:var(--muted);">Type:</label>
+      <select id="reg-type" onchange="refit()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;margin:.3rem 0;">
+        <option value="none">None (OLS)</option>
+        <option value="ridge">Ridge (L2)</option>
+        <option value="lasso">Lasso (L1)</option>
+      </select>
+      <div class="slider-row" id="lambda-row" style="display:none;">
+        <label>λ (regularisation) <span id="lambda-val">0.10</span></label>
+        <input type="range" id="lambda-slider" min="0.01" max="2" step="0.01" value="0.1" oninput="document.getElementById('lambda-val').textContent=parseFloat(this.value).toFixed(2);refit()">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 Model Performance</div>
+      <div class="metrics-row">
+        <div class="metric-chip">
+          <div class="mc-label">R²</div>
+          <div class="mc-value" id="m-r2" style="color:var(--green)">–</div>
+        </div>
+        <div class="metric-chip">
+          <div class="mc-label">MAE (eV)</div>
+          <div class="mc-value" id="m-mae" style="color:var(--blue)">–</div>
+        </div>
+        <div class="metric-chip">
+          <div class="mc-label">RMSE (eV)</div>
+          <div class="mc-value" id="m-rmse" style="color:var(--purple)">–</div>
+        </div>
+      </div>
+      <div class="card-title" style="margin-top:.8rem;">🧮 Fitted Equation</div>
+      <div class="eq" id="eq-display">Select features and fit the model</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔮 Predict a New Material</div>
+    <div class="grid-2">
+      <div>
+        <div class="slider-row">
+          <label>Lattice constant a (Å) <span id="pred-a-val">5.00</span></label>
+          <input type="range" id="pred-a" min="3.0" max="7.0" step="0.05" value="5.0"
+            oninput="document.getElementById('pred-a-val').textContent=parseFloat(this.value).toFixed(2);updatePred()">
+        </div>
+        <div class="slider-row">
+          <label>Electronegativity diff ΔEN <span id="pred-den-val">0.50</span></label>
+          <input type="range" id="pred-den" min="0" max="2.5" step="0.05" value="0.5"
+            oninput="document.getElementById('pred-den-val').textContent=parseFloat(this.value).toFixed(2);updatePred()">
+        </div>
+        <div class="slider-row">
+          <label>Valence electrons <span id="pred-val-val">12</span></label>
+          <input type="range" id="pred-val" min="8" max="18" step="1" value="12"
+            oninput="document.getElementById('pred-val-val').textContent=this.value;updatePred()">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.5rem;">
+        <div style="font-size:.85rem;color:var(--muted)">Predicted Band Gap</div>
+        <div id="pred-result" style="font-size:2.2rem;font-weight:800;font-family:monospace;color:var(--green)">–</div>
+        <div style="font-size:.8rem;color:var(--muted)">eV</div>
+        <div id="pred-class" style="font-size:.85rem;font-weight:600;padding:.3rem .8rem;border-radius:20px;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANEL 2 — GRADIENT DESCENT
+══════════════════════════════════════════ -->
+<div id="panel-gd" class="panel">
+  <div class="card">
+    <div class="card-title">🔄 Gradient Descent — Watch the Model Learn</div>
+    <p style="margin-bottom:.8rem;">The algorithm starts with all weights = 0 and iteratively adjusts them to minimise the MSE cost. Watch the loss decrease toward the optimal solution.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⚙️ Hyperparameters</div>
+      <div class="slider-row">
+        <label>Learning rate η <span id="lr-val">0.0010</span></label>
+        <input type="range" id="lr-slider" min="0.0001" max="0.005" step="0.0001" value="0.001"
+          oninput="document.getElementById('lr-val').textContent=parseFloat(this.value).toFixed(4)">
+      </div>
+      <div class="slider-row">
+        <label>Max iterations <span id="iter-val">200</span></label>
+        <input type="range" id="iter-slider" min="50" max="1000" step="50" value="200"
+          oninput="document.getElementById('iter-val').textContent=this.value">
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="runGD()">▶ Run GD</button>
+        <button class="btn secondary" onclick="resetGD()">↺ Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Current Weights</div>
+      <div class="metrics-row">
+        <div class="metric-chip">
+          <div class="mc-label">θ₀ (bias)</div>
+          <div class="mc-value" id="gd-t0" style="color:var(--purple)">0.000</div>
+        </div>
+        <div class="metric-chip">
+          <div class="mc-label">θ₁ (a)</div>
+          <div class="mc-value" id="gd-t1" style="color:var(--blue)">0.000</div>
+        </div>
+        <div class="metric-chip">
+          <div class="mc-label">θ₂ (ΔEN)</div>
+          <div class="mc-value" id="gd-t2" style="color:var(--green)">0.000</div>
+        </div>
+      </div>
+      <div class="metric-chip" style="margin-top:.5rem;">
+        <div class="mc-label">MSE Cost J(θ)</div>
+        <div class="mc-value" id="gd-cost" style="color:var(--amber)">–</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📉 Loss Curve — MSE vs. Iteration</div>
+    <canvas id="gd-canvas" height="200"></canvas>
+    <div id="gd-log">▶ Press "Run GD" to start gradient descent...<br></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANEL 3 — PARITY PLOT
+══════════════════════════════════════════ -->
+<div id="panel-parity" class="panel">
+  <div class="card">
+    <div class="card-title">🎯 Parity Plot — DFT vs. Predicted Band Gap</div>
+    <p>A perfect model places all points on the diagonal y = x line. Points above the line = underpredicted. Points below = overpredicted.</p>
+    <div class="dot-legend" style="margin-top:.6rem;">
+      <span><div class="dot" style="background:#3b82f6"></div> II-VI oxides / wide gap</span>
+      <span><div class="dot" style="background:#22c55e"></div> III-V nitrides</span>
+      <span><div class="dot" style="background:#f59e0b"></div> III-V standard</span>
+      <span><div class="dot" style="background:#a855f7"></div> IV-IV / elemental</span>
+    </div>
+    <canvas id="parity-canvas" height="380"></canvas>
+    <p class="parity-info" id="parity-metrics">Fit the model in the Model tab first.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANEL 4 — FEATURES
+══════════════════════════════════════════ -->
+<div id="panel-features" class="panel">
+  <div class="card">
+    <div class="card-title">🔬 Feature Importance — Coefficient Magnitudes</div>
+    <p style="margin-bottom:.8rem;">After standardising features (mean=0, std=1), the coefficient magnitudes tell us which features the model relies on most.</p>
+    <div id="feat-bars"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Band Gap vs. Lattice Constant — Regression Line</div>
+    <canvas id="feat-canvas" height="280"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Band Gap vs. ΔEN — Regression Line</div>
+    <canvas id="feat2-canvas" height="280"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔢 Feature Correlation Matrix</div>
+    <canvas id="corr-canvas" height="200"></canvas>
+    <p class="parity-info">Cell values show Pearson correlation (−1 to +1). High correlation between features (multicollinearity) can destabilise linear regression coefficients.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANEL 5 — QUIZ
+══════════════════════════════════════════ -->
+<div id="panel-quiz" class="panel">
+  <div class="card">
+    <div class="card-title">📝 Quiz — Test Your Understanding</div>
+    <div id="quiz-progress" style="margin-bottom:1rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted);margin-bottom:.3rem;">
+        <span>Progress</span><span id="q-progress-text">0 / 5</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="q-bar" style="width:0%"></div></div>
+    </div>
+    <div id="quiz-container"></div>
+    <div id="quiz-score"></div>
+    <button class="btn secondary" onclick="resetQuiz()" style="margin-top:.8rem;">↺ Reset Quiz</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════ -->
+<script>
+// ── DATA ──────────────────────────────────
+const DATA = [
+  { name:'ZnO',  type:'oxide',    a:3.25, den:1.79, val:12, eg:3.44 },
+  { name:'ZnS',  type:'II-VI',   a:5.41, den:0.93, val:12, eg:2.10 },
+  { name:'ZnSe', type:'II-VI',   a:5.67, den:0.64, val:12, eg:1.29 },
+  { name:'ZnTe', type:'II-VI',   a:6.10, den:0.15, val:12, eg:0.74 },
+  { name:'GaAs', type:'III-V',   a:5.65, den:0.40, val:13, eg:1.42 },
+  { name:'GaP',  type:'III-V',   a:5.45, den:0.23, val:13, eg:1.57 },
+  { name:'GaN',  type:'nitride', a:3.19, den:1.23, val:13, eg:3.51 },
+  { name:'InP',  type:'III-V',   a:5.87, den:0.11, val:13, eg:0.50 },
+  { name:'InAs', type:'III-V',   a:6.06, den:0.17, val:13, eg:0.18 },
+  { name:'Si',   type:'IV-IV',   a:5.43, den:0.00, val:14, eg:1.12 },
+  { name:'Ge',   type:'IV-IV',   a:5.66, den:0.00, val:14, eg:0.00 },
+  { name:'AlN',  type:'nitride', a:3.11, den:1.43, val:13, eg:4.20 },
+];
+
+const TYPE_COLORS = {
+  oxide:'#3b82f6', 'II-VI':'#3b82f6',
+  nitride:'#22c55e', 'III-V':'#f59e0b', 'IV-IV':'#a855f7'
+};
+
+// ── Model state ──
+let theta = [0,0,0,0]; // [bias, a, den, val]
+let predictions = DATA.map(()=>0);
+
+// ── Utils ──
+function dot(a,b){ return a.reduce((s,v,i)=>s+v*b[i],0); }
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr){ const m=mean(arr); return Math.sqrt(mean(arr.map(v=>(v-m)**2))); }
+
+function getActiveFeats(){
+  const feats=[];
+  if(document.getElementById('feat-a').checked) feats.push('a');
+  if(document.getElementById('feat-den').checked) feats.push('den');
+  if(document.getElementById('feat-val').checked) feats.push('val');
+  return feats;
+}
+
+function buildX(feats, data){
+  return data.map(d=>[1, ...feats.map(f=>d[f])]);
+}
+
+function matMul(A,B){
+  const r=A.length, c=B[0].length, k=B.length;
+  return Array.from({length:r},(_,i)=>Array.from({length:c},(_,j)=>
+    A[i].reduce((s,v,p)=>s+v*B[p][j],0)));
+}
+function transpose(M){ return M[0].map((_,i)=>M.map(r=>r[i])); }
+function matInv2x2(M){
+  const det=M[0][0]*M[1][1]-M[0][1]*M[1][0];
+  return [[M[1][1]/det,-M[0][1]/det],[-M[1][0]/det,M[0][0]/det]];
+}
+
+// Gaussian elimination for matrix inverse
+function matInv(M){
+  const n=M.length;
+  const A=M.map(r=>[...r]);
+  const I=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+  for(let col=0;col<n;col++){
+    let pivot=col;
+    for(let r=col+1;r<n;r++) if(Math.abs(A[r][col])>Math.abs(A[pivot][col])) pivot=r;
+    [A[col],A[pivot]]=[A[pivot],A[col]]; [I[col],I[pivot]]=[I[pivot],I[col]];
+    const s=A[col][col];
+    if(Math.abs(s)<1e-12) continue;
+    for(let j=0;j<n;j++){ A[col][j]/=s; I[col][j]/=s; }
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const f=A[r][col];
+      for(let j=0;j<n;j++){ A[r][j]-=f*A[col][j]; I[r][j]-=f*I[col][j]; }
+    }
+  }
+  return I;
+}
+
+function normalEq(X, y, lam=0, type='none'){
+  const Xt=transpose(X);
+  const XtX=matMul(Xt,X);
+  if(type==='ridge'){
+    for(let i=1;i<XtX.length;i++) XtX[i][i]+=lam;
+  }
+  const Xty=matMul(Xt,y.map(v=>[v]));
+  const inv=matInv(XtX);
+  return matMul(inv,Xty).map(r=>r[0]);
+}
+
+function computeMetrics(y, yhat){
+  const n=y.length;
+  const ym=mean(y);
+  const mae=mean(y.map((v,i)=>Math.abs(v-yhat[i])));
+  const mse=mean(y.map((v,i)=>(v-yhat[i])**2));
+  const rmse=Math.sqrt(mse);
+  const sst=y.reduce((s,v)=>s+(v-ym)**2,0);
+  const sse=y.reduce((s,v,i)=>s+(v-yhat[i])**2,0);
+  const r2=1-sse/sst;
+  return {mae,mse,rmse,r2};
+}
+
+// ── Refit (OLS / Ridge) ──
+function refit(){
+  const feats=getActiveFeats();
+  const regType=document.getElementById('reg-type').value;
+  const lambdaRow=document.getElementById('lambda-row');
+  lambdaRow.style.display=regType==='none'?'none':'block';
+  const lam=parseFloat(document.getElementById('lambda-slider').value);
+
+  if(feats.length===0){
+    document.getElementById('eq-display').textContent='Select at least one feature.';
+    document.getElementById('m-r2').textContent='–';
+    document.getElementById('m-mae').textContent='–';
+    document.getElementById('m-rmse').textContent='–';
+    return;
+  }
+
+  const X=buildX(feats,DATA);
+  const y=DATA.map(d=>d.eg);
+  const th=normalEq(X,y,lam,regType);
+  const yhat=X.map(row=>dot(row,th));
+
+  // store
+  theta=[0,0,0,0];
+  theta[0]=th[0];
+  feats.forEach((f,i)=>{
+    const idx={a:1,den:2,val:3}[f];
+    theta[idx]=th[i+1];
+  });
+  predictions=yhat;
+
+  const {mae,rmse,r2}=computeMetrics(y,yhat);
+  document.getElementById('m-r2').textContent=r2.toFixed(3);
+  document.getElementById('m-mae').textContent=mae.toFixed(3);
+  document.getElementById('m-rmse').textContent=rmse.toFixed(3);
+  document.getElementById('m-r2').style.color=r2>0.85?'#22c55e':r2>0.6?'#f59e0b':'#ef4444';
+
+  // equation
+  let eq=`Ê_g = ${th[0].toFixed(3)}`;
+  feats.forEach((f,i)=>{
+    const sign=th[i+1]>=0?'+':'-';
+    const fname={a:'a', den:'ΔEN', val:'val'}[f];
+    eq+=` ${sign} ${Math.abs(th[i+1]).toFixed(3)}·${fname}`;
+  });
+  document.getElementById('eq-display').textContent=eq;
+
+  updateDataTable(feats,yhat);
+  updatePred();
+  drawParity();
+  drawFeatPlots();
+  drawFeatBars(feats,th);
+}
+
+function updateDataTable(feats, yhat){
+  const body=document.getElementById('data-body');
+  body.innerHTML='';
+  DATA.forEach((d,i)=>{
+    const err=Math.abs(d.eg-yhat[i]);
+    const errClass=err<0.3?'good':err<0.8?'hi':'bad';
+    body.innerHTML+=`<tr>
+      <td>${i+1}</td>
+      <td style="font-weight:600">${d.name}</td>
+      <td>${d.a.toFixed(2)}</td>
+      <td>${d.den.toFixed(2)}</td>
+      <td>${d.val}</td>
+      <td class="hi">${d.eg.toFixed(2)}</td>
+      <td class="pred">${yhat[i].toFixed(2)}</td>
+      <td class="${errClass}">${err.toFixed(2)}</td>
+    </tr>`;
+  });
+}
+
+function updatePred(){
+  const feats=getActiveFeats();
+  if(feats.length===0){ document.getElementById('pred-result').textContent='–'; return; }
+  const a=parseFloat(document.getElementById('pred-a').value);
+  const den=parseFloat(document.getElementById('pred-den').value);
+  const val=parseInt(document.getElementById('pred-val').value);
+  const x=[1,a,den,val];
+  const th=feats.reduce((arr,f,i)=>{arr.push(theta[{a:1,den:2,val:3}[f]]); return arr;},[theta[0]]);
+  const xsel=[1,...feats.map(f=>({a,den,val})[f])];
+  const pred=dot(xsel,th);
+  const clamped=Math.max(-0.5,Math.min(7,pred));
+  document.getElementById('pred-result').textContent=clamped.toFixed(2);
+  const cls=document.getElementById('pred-class');
+  if(clamped<0.1){cls.textContent='Metal / semi-metal';cls.style.background='rgba(239,68,68,.15)';cls.style.color='#ef4444';}
+  else if(clamped<1.5){cls.textContent='Narrow-gap semiconductor';cls.style.background='rgba(245,158,11,.15)';cls.style.color='#f59e0b';}
+  else if(clamped<3.0){cls.textContent='Wide-gap semiconductor';cls.style.background='rgba(59,130,246,.15)';cls.style.color='#3b82f6';}
+  else{cls.textContent='Insulator / UV semiconductor';cls.style.background='rgba(168,85,247,.15)';cls.style.color='#a855f7';}
+}
+
+// ── Gradient Descent ──
+let gdHistory={losses:[],t0s:[],t1s:[],t2s:[]};
+
+function resetGD(){
+  gdHistory={losses:[],t0s:[],t1s:[],t2s:[]};
+  document.getElementById('gd-t0').textContent='0.000';
+  document.getElementById('gd-t1').textContent='0.000';
+  document.getElementById('gd-t2').textContent='0.000';
+  document.getElementById('gd-cost').textContent='–';
+  const canvas=document.getElementById('gd-canvas');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  document.getElementById('gd-log').innerHTML='▶ Press "Run GD" to start gradient descent...<br>';
+}
+
+function runGD(){
+  const lr=parseFloat(document.getElementById('lr-slider').value);
+  const maxIter=parseInt(document.getElementById('iter-slider').value);
+  const X=DATA.map(d=>[1,d.a,d.den]);
+  const y=DATA.map(d=>d.eg);
+  const N=DATA.length;
+  let t=[0,0,0];
+  const log=document.getElementById('gd-log');
+  log.innerHTML='';
+  gdHistory={losses:[],t0s:[],t1s:[],t2s:[]};
+
+  for(let iter=0;iter<maxIter;iter++){
+    const yhat=X.map(row=>dot(row,t));
+    const errs=yhat.map((v,i)=>v-y[i]);
+    const mse=errs.reduce((s,v)=>s+v*v,0)/N;
+    gdHistory.losses.push(mse);
+    gdHistory.t0s.push(t[0]);
+    gdHistory.t1s.push(t[1]);
+    gdHistory.t2s.push(t[2]);
+
+    // gradients
+    const g=[0,0,0];
+    for(let j=0;j<3;j++) g[j]=(2/N)*errs.reduce((s,e,i)=>s+e*X[i][j],0);
+    for(let j=0;j<3;j++) t[j]-=lr*g[j];
+
+    if(iter%Math.max(1,Math.floor(maxIter/10))===0 || iter===maxIter-1){
+      log.innerHTML+=`Iter ${String(iter).padStart(4,' ')}: J=${mse.toFixed(4)}  θ=[${t[0].toFixed(3)}, ${t[1].toFixed(3)}, ${t[2].toFixed(3)}]<br>`;
+    }
+  }
+  log.scrollTop=log.scrollHeight;
+  const last=gdHistory.losses.length-1;
+  document.getElementById('gd-t0').textContent=t[0].toFixed(3);
+  document.getElementById('gd-t1').textContent=t[1].toFixed(3);
+  document.getElementById('gd-t2').textContent=t[2].toFixed(3);
+  document.getElementById('gd-cost').textContent=gdHistory.losses[last].toFixed(4);
+  drawGDCurve();
+  log.innerHTML+=`<br>✅ Converged: θ₀=${t[0].toFixed(3)}, θ₁=${t[1].toFixed(3)}, θ₂=${t[2].toFixed(3)}<br>`;
+  log.scrollTop=log.scrollHeight;
+}
+
+function drawGDCurve(){
+  const canvas=document.getElementById('gd-canvas');
+  canvas.width=canvas.offsetWidth*window.devicePixelRatio||600;
+  canvas.height=200*window.devicePixelRatio||200;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio,1);
+  const W=canvas.offsetWidth||600, H=200;
+  ctx.fillStyle='#1a1d27'; ctx.fillRect(0,0,W,H);
+
+  const losses=gdHistory.losses;
+  if(!losses.length) return;
+  const maxL=Math.max(...losses);
+  const minL=Math.min(...losses);
+  const pad={l:50,r:20,t:15,b:35};
+
+  // axes
+  ctx.strokeStyle='#2d3250'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b);
+  ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+
+  ctx.fillStyle='#8896a8'; ctx.font='10px monospace';
+  ctx.fillText('MSE',4,pad.t+10);
+  ctx.fillText(maxL.toFixed(2),pad.l+3,pad.t+10);
+  ctx.fillText(minL.toFixed(3),pad.l+3,H-pad.b-3);
+  ctx.fillText('Iteration',W/2-20,H-5);
+
+  // loss curve
+  ctx.strokeStyle='#22c55e'; ctx.lineWidth=2;
+  ctx.beginPath();
+  losses.forEach((v,i)=>{
+    const x=pad.l+(i/(losses.length-1))*(W-pad.l-pad.r);
+    const y=pad.t+(1-(v-minL)/(maxL-minL+1e-10))*(H-pad.t-pad.b);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+// ── Parity Plot ──
+function drawParity(){
+  const canvas=document.getElementById('parity-canvas');
+  const W=canvas.offsetWidth||500;
+  canvas.width=W*window.devicePixelRatio||500;
+  canvas.height=380*window.devicePixelRatio||380;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const H=380;
+  ctx.fillStyle='#1a1d27'; ctx.fillRect(0,0,W,H);
+
+  const pad={l:55,r:20,t:20,b:50};
+  const eg=DATA.map(d=>d.eg);
+  const maxV=Math.max(...eg,...predictions)+0.3;
+  const minV=-0.1;
+
+  function px(v){ return pad.l+(v-minV)/(maxV-minV)*(W-pad.l-pad.r); }
+  function py(v){ return H-pad.b-(v-minV)/(maxV-minV)*(H-pad.t-pad.b); }
+
+  // grid
+  ctx.strokeStyle='#2d3250'; ctx.lineWidth=0.7;
+  [0,1,2,3,4].forEach(v=>{
+    ctx.beginPath(); ctx.moveTo(pad.l,py(v)); ctx.lineTo(W-pad.r,py(v)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px(v),H-pad.b); ctx.lineTo(px(v),pad.t); ctx.stroke();
+  });
+
+  // diagonal
+  ctx.strokeStyle='#f59e0b'; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(px(minV),py(minV)); ctx.lineTo(px(maxV),py(maxV)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // points
+  DATA.forEach((d,i)=>{
+    const x=px(d.eg), y=py(predictions[i]);
+    ctx.beginPath(); ctx.arc(x,y,7,0,2*Math.PI);
+    ctx.fillStyle=TYPE_COLORS[d.type]||'#3b82f6'; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#e2e8f0'; ctx.font='10px sans-serif';
+    ctx.fillText(d.name,x+9,y+4);
+  });
+
+  // axes labels
+  ctx.fillStyle='#8896a8'; ctx.font='11px sans-serif';
+  ctx.fillText('DFT E_g (eV)',W/2-40,H-5);
+  ctx.save(); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Predicted E_g (eV)',-(H/2)-40,12); ctx.restore();
+
+  // R² annotation
+  const y2=DATA.map(d=>d.eg);
+  const {r2,mae}=computeMetrics(y2,predictions);
+  ctx.fillStyle='#22c55e'; ctx.font='bold 12px monospace';
+  ctx.fillText(`R² = ${r2.toFixed(3)}   MAE = ${mae.toFixed(3)} eV`, W-200, 35);
+
+  document.getElementById('parity-metrics').textContent=
+    `R² = ${r2.toFixed(3)} · MAE = ${mae.toFixed(3)} eV · RMSE = ${Math.sqrt(mean(y2.map((v,i)=>(v-predictions[i])**2))).toFixed(3)} eV`;
+}
+
+// ── Feature scatter plots ──
+function drawFeatPlots(){
+  drawScatter('feat-canvas','a','Lattice constant a (Å)','E_g DFT (eV)');
+  drawScatter('feat2-canvas','den','ΔEN (Pauling)','E_g DFT (eV)');
+  drawCorr();
+}
+
+function drawScatter(id, feat, xlab, ylab){
+  const canvas=document.getElementById(id);
+  const W=canvas.offsetWidth||500;
+  canvas.width=W*(window.devicePixelRatio||1);
+  canvas.height=280*(window.devicePixelRatio||1);
+  const ctx=canvas.getContext('2d'); ctx.scale(window.devicePixelRatio||1,window.devicePixelRatio||1);
+  const H=280;
+  ctx.fillStyle='#1a1d27'; ctx.fillRect(0,0,W,H);
+  const pad={l:45,r:20,t:15,b:40};
+  const xs=DATA.map(d=>d[feat]), ys=DATA.map(d=>d.eg);
+  const xmin=Math.min(...xs)-0.2, xmax=Math.max(...xs)+0.2;
+  const ymin=-0.2, ymax=Math.max(...ys)+0.3;
+  const px=v=>pad.l+(v-xmin)/(xmax-xmin)*(W-pad.l-pad.r);
+  const py=v=>H-pad.b-(v-ymin)/(ymax-ymin)*(H-pad.t-pad.b);
+
+  // grid
+  ctx.strokeStyle='#2d3250'; ctx.lineWidth=0.7;
+  [1,2,3,4].forEach(v=>{ ctx.beginPath();ctx.moveTo(pad.l,py(v));ctx.lineTo(W-pad.r,py(v));ctx.stroke(); });
+
+  // regression line (single feature OLS)
+  const xm=mean(xs),ym=mean(ys);
+  const num=xs.reduce((s,x,i)=>s+(x-xm)*(ys[i]-ym),0);
+  const den2=xs.reduce((s,x)=>s+(x-xm)**2,0);
+  const slope=num/den2, intercept=ym-slope*xm;
+  ctx.strokeStyle='#f59e0b'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(px(xmin),py(slope*xmin+intercept));
+  ctx.lineTo(px(xmax),py(slope*xmax+intercept));
+  ctx.stroke();
+
+  // points
+  DATA.forEach((d,i)=>{
+    ctx.beginPath(); ctx.arc(px(d[feat]),py(d.eg),6,0,2*Math.PI);
+    ctx.fillStyle=TYPE_COLORS[d.type]||'#3b82f6'; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  ctx.fillStyle='#8896a8'; ctx.font='11px sans-serif';
+  ctx.fillText(xlab,W/2-50,H-5);
+  ctx.save(); ctx.rotate(-Math.PI/2);
+  ctx.fillText(ylab,-(H/2)-20,12); ctx.restore();
+}
+
+function drawCorr(){
+  const canvas=document.getElementById('corr-canvas');
+  const W=canvas.offsetWidth||400;
+  canvas.width=W*(window.devicePixelRatio||1);
+  canvas.height=200*(window.devicePixelRatio||1);
+  const ctx=canvas.getContext('2d'); ctx.scale(window.devicePixelRatio||1,window.devicePixelRatio||1);
+  const H=200;
+  ctx.fillStyle='#1a1d27'; ctx.fillRect(0,0,W,H);
+
+  const labels=['a','ΔEN','Val.','E_g'];
+  const keys=['a','den','val','eg'];
+  const n=4;
+  const cellW=Math.min((W-60)/n, 70);
+  const cellH=Math.min((H-40)/n, 40);
+  const startX=55, startY=35;
+
+  // labels
+  ctx.fillStyle='#8896a8'; ctx.font='11px sans-serif';
+  labels.forEach((l,i)=>{
+    ctx.fillText(l, startX+i*cellW+cellW/2-8, 18);
+    ctx.fillText(l, 5, startY+i*cellH+cellH/2+4);
+  });
+
+  const arrs=keys.map(k=>DATA.map(d=>d[k]));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    const xi=arrs[i], xj=arrs[j];
+    const mi=mean(xi), mj=mean(xj);
+    const num=xi.reduce((s,v,k)=>s+(v-mi)*(xj[k]-mj),0);
+    const d1=Math.sqrt(xi.reduce((s,v)=>s+(v-mi)**2,0));
+    const d2=Math.sqrt(xj.reduce((s,v)=>s+(v-mj)**2,0));
+    const r=num/(d1*d2+1e-10);
+    const alpha=Math.abs(r);
+    const col=r>0?`rgba(34,197,94,${alpha})`:`rgba(239,68,68,${alpha})`;
+    ctx.fillStyle=col;
+    ctx.fillRect(startX+j*cellW, startY+i*cellH, cellW-2, cellH-2);
+    ctx.fillStyle='#e2e8f0'; ctx.font='bold 11px monospace';
+    ctx.fillText(r.toFixed(2), startX+j*cellW+cellW/2-16, startY+i*cellH+cellH/2+4);
+  }
+}
+
+function drawFeatBars(feats, th){
+  const container=document.getElementById('feat-bars');
+  if(!th||feats.length===0){ container.innerHTML='<p style="color:var(--muted)">Fit model to see feature importance.</p>'; return; }
+  const names={a:'Lattice constant a', den:'Electronegativity ΔEN', val:'Valence electrons'};
+  const maxAbs=Math.max(...feats.map((_,i)=>Math.abs(th[i+1])));
+  container.innerHTML=feats.map((f,i)=>{
+    const val=th[i+1]; const pct=Math.abs(val)/maxAbs*100;
+    const col=val>0?'var(--green)':'var(--red)';
+    return `<div class="feat-bar-wrap">
+      <div class="feat-bar-label">
+        <span>${names[f]}</span>
+        <span style="font-family:monospace;color:${col}">${val>=0?'+':''}${val.toFixed(3)}</span>
+      </div>
+      <div class="feat-bar-track">
+        <div class="feat-bar-fill" style="width:${pct}%;background:${col}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Quiz ──
+const QUESTIONS=[
+  {
+    q:'In the equation Ê_g = 7.81 − 1.14·a + 1.29·ΔEN, what does the negative sign on θ₁ = −1.14 physically mean?',
+    opts:['Larger lattice constant → stronger orbital overlap → wider gap',
+          'Larger lattice constant → weaker orbital overlap → narrower band gap',
+          'The model made an error — this coefficient should be positive',
+          'It means the feature a should be removed from the model'],
+    ans:1, expl:'Larger bond distances reduce orbital overlap, weakening the bonding–antibonding splitting and narrowing the gap.'
+  },
+  {
+    q:'You have 6 features and 8 training examples. Your train R² = 0.99 but test R² = 0.30. What is the problem?',
+    opts:['Underfitting — add more features',
+          'The Normal Equation is broken for small datasets',
+          'Overfitting — model memorised the training noise',
+          'The learning rate is too small'],
+    ans:2, expl:'Overfitting occurs when a model has too many parameters relative to the data. The model memorises the training examples instead of learning generalizable patterns.'
+  },
+  {
+    q:'Which cost function does standard linear regression minimise?',
+    opts:['Mean Absolute Error (MAE)',
+          'Mean Squared Error (MSE)',
+          'Cross-entropy loss',
+          'Huber loss'],
+    ans:1, expl:'Linear regression minimises the MSE (sum of squared residuals), which has a convenient analytical solution via the Normal Equation.'
+  },
+  {
+    q:'You add Lasso regularisation (λ > 0) to a 10-feature model. What additional benefit does Lasso give over Ridge?',
+    opts:['Lasso makes training faster by using momentum',
+          'Lasso increases R² on the training set',
+          'Lasso drives some weights exactly to zero — automatic feature selection',
+          'Lasso prevents gradient vanishing in deep networks'],
+    ans:2, expl:'The L1 penalty in Lasso produces sparse solutions: many coefficients become exactly zero, effectively selecting the most important features automatically.'
+  },
+  {
+    q:'The parity plot of your band gap model shows all predictions are systematically below the DFT values. This most likely indicates:',
+    opts:['Random noise in the data',
+          'Overfitting to the training set',
+          'A systematic bias — the model is missing an important feature or has wrong functional form',
+          'The learning rate η is too large'],
+    ans:2, expl:'Systematic bias (all errors in one direction) indicates the model is consistently wrong — usually because a key feature is missing, the relationship is non-linear, or the training data does not cover this region.'
+  }
+];
+
+let quizAnswered=new Array(QUESTIONS.length).fill(false);
+let quizScore=0;
+
+function renderQuiz(){
+  const c=document.getElementById('quiz-container');
+  c.innerHTML=QUESTIONS.map((q,qi)=>`
+    <div class="card" style="margin-bottom:.8rem;">
+      <p class="quiz-q">${qi+1}. ${q.q}</p>
+      <div class="quiz-opts">
+        ${q.opts.map((o,oi)=>`<button class="quiz-opt" id="qo-${qi}-${oi}" onclick="answerQ(${qi},${oi})">${String.fromCharCode(65+oi)}. ${o}</button>`).join('')}
+      </div>
+      <div id="qexpl-${qi}" style="display:none;font-size:.85rem;color:var(--muted);margin-top:.5rem;padding:.5rem;background:var(--surface2);border-radius:6px;">💡 ${q.expl}</div>
+    </div>
+  `).join('');
+  updateQuizProgress();
+}
+
+function answerQ(qi, chosen){
+  if(quizAnswered[qi]) return;
+  quizAnswered[qi]=true;
+  const q=QUESTIONS[qi];
+  const correct=chosen===q.ans;
+  if(correct) quizScore++;
+  for(let oi=0;oi<q.opts.length;oi++){
+    const btn=document.getElementById(`qo-${qi}-${oi}`);
+    btn.disabled=true;
+    if(oi===q.ans) btn.classList.add('correct');
+    else if(oi===chosen && !correct) btn.classList.add('wrong');
+  }
+  document.getElementById(`qexpl-${qi}`).style.display='block';
+  updateQuizProgress();
+  if(quizAnswered.every(Boolean)){
+    document.getElementById('quiz-score').textContent=
+      `🏆 Final score: ${quizScore} / ${QUESTIONS.length}`;
+  }
+}
+
+function updateQuizProgress(){
+  const done=quizAnswered.filter(Boolean).length;
+  document.getElementById('q-progress-text').textContent=`${done} / ${QUESTIONS.length}`;
+  document.getElementById('q-bar').style.width=`${done/QUESTIONS.length*100}%`;
+}
+
+function resetQuiz(){
+  quizAnswered=new Array(QUESTIONS.length).fill(false);
+  quizScore=0;
+  document.getElementById('quiz-score').textContent='';
+  renderQuiz();
+}
+
+// ── Tab switching ──
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+  if(id==='parity') drawParity();
+  if(id==='features') drawFeatPlots();
+  if(id==='gd') drawGDCurve();
+}
+
+// ── Init ──
+window.addEventListener('load',()=>{
+  refit();
+  renderQuiz();
+  document.getElementById('reg-type').addEventListener('change',refit);
+});
+window.addEventListener('resize',()=>{
+  drawParity();
+  if(document.getElementById('panel-features').classList.contains('active')) drawFeatPlots();
+  if(document.getElementById('panel-gd').classList.contains('active')) drawGDCurve();
+});
+</script>
+</body>
+</html>
