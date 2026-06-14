@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App 8 — SVM Explorer: Margin, Kernel &amp; Support Vectors</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#ffffff; --surface:#f7f6f2; --border:#e0ddd6;
+    --accent:#1a5276; --accent2:#0f6e56; --warn:#854f0b;
+    --text:#0d0d0d; --muted:#444444; --heading:#000000;
+    --code-bg:#f0ede4; --tag-bg:#d4e6f1;
+    --coral:#993c1d; --cubic:#1a5276; --noncubic:#993c1d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 15px;
+    line-height: 1.6; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  h1 { font-family: 'Playfair Display', serif; font-size: clamp(20px,3.5vw,30px); margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+
+  .controls {
+    display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .ctrl select { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .ctrl input[type=range] { width: 130px; accent-color: var(--accent); }
+  .ctrl .val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); font-weight: 600; }
+  .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 20px; font-weight: 600; font-size: 13px; cursor: pointer; align-self: flex-end; font-family: 'IBM Plex Sans', sans-serif; }
+  .btn:hover { background: var(--accent2); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .panel h2 { font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+  canvas { width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; }
+  .metric { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+  .metric .mval { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: var(--accent); }
+  .metric .mlbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+
+  .sv-list { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text); }
+  .sv-list div { padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .sv-list div:last-child { border-bottom: none; }
+  .sv-tag { display: inline-block; background: var(--tag-bg); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 10px; margin-left: 6px; }
+
+  .margin-bar-wrap { margin-top: 14px; }
+  .margin-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .margin-bar-bg { background: var(--border); border-radius: 4px; height: 16px; }
+  .margin-bar { height: 16px; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+  .margin-val { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); font-weight: 600; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 8 — SVM Explorer</h1>
+  <p class="sub">Crystal symmetry classification · Cubic vs Non-cubic · adjust kernel, C, and γ to see margin and support vectors update</p>
+
+  <div class="controls">
+    <div class="ctrl">
+      <label>Kernel</label>
+      <select id="kernel">
+        <option value="linear">Linear</option>
+        <option value="rbf" selected>RBF (Gaussian)</option>
+        <option value="poly">Polynomial (d=2)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>C (regularisation) <span class="val" id="cVal">1.0</span></label>
+      <input type="range" id="cSlider" min="-2" max="2" step="0.25" value="0">
+    </div>
+    <div class="ctrl">
+      <label>γ (RBF/poly only) <span class="val" id="gVal">1.0</span></label>
+      <input type="range" id="gSlider" min="-2" max="2" step="0.25" value="0">
+    </div>
+    <div class="ctrl">
+      <label>X axis</label>
+      <select id="xAxis">
+        <option value="0" selected>τ (tolerance factor)</option>
+        <option value="1">ΔEN</option>
+        <option value="2">CN</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Y axis</label>
+      <select id="yAxis">
+        <option value="0">τ (tolerance factor)</option>
+        <option value="1" selected>ΔEN</option>
+        <option value="2">CN</option>
+      </select>
+    </div>
+    <button class="btn" id="runBtn">▶ Run</button>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Decision Boundary &amp; Margin</h2>
+      <canvas id="boundary" width="480" height="400"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:rgba(26,82,118,.2)"></span>Cubic region</span>
+        <span><span class="dot" style="background:rgba(153,60,29,.2)"></span>Non-cubic region</span>
+        <span><span class="dot" style="background:#f5c842;width:12px;height:12px;border-radius:50%;border:2px solid #333"></span>Support vector</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Decision Function (Margin Scores)</h2>
+      <canvas id="scores" width="480" height="400"></canvas>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">Score &gt; 0 → Cubic; Score &lt; 0 → Non-cubic. |score| = distance from decision boundary.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Support Vectors</h2>
+      <div class="sv-list" id="svList"></div>
+      <div class="margin-bar-wrap">
+        <div class="margin-label">Margin width (normalised)</div>
+        <div class="margin-bar-bg"><div class="margin-bar" id="marginBar" style="width:50%"></div></div>
+        <div class="margin-val" id="marginVal">–</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Metrics</h2>
+      <div class="metrics">
+        <div class="metric"><div class="mval" id="mAcc">–</div><div class="mlbl">Train Acc.</div></div>
+        <div class="metric"><div class="mval" id="mSV">–</div><div class="mlbl">Support Vecs.</div></div>
+        <div class="metric"><div class="mval" id="mMargin">–</div><div class="mlbl">Margin</div></div>
+      </div>
+      <div style="margin-top:18px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Per-compound decision scores</div>
+        <div id="scoreTable" style="font-size:12px;font-family:'IBM Plex Mono',monospace"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ────────────────────────────────────────────────────
+const DATA = [
+  {name:'NaCl',   x:[1.00,1.78,6],  y: 1},
+  {name:'MgO',    x:[0.99,2.13,6],  y: 1},
+  {name:'BaTiO₃', x:[1.06,1.89,6],  y: 1},
+  {name:'SrTiO₃', x:[1.00,1.97,6],  y: 1},
+  {name:'CaF₂',   x:[1.03,2.98,8],  y: 1},
+  {name:'FeO',    x:[0.97,1.61,6],  y: 1},
+  {name:'TiO₂',   x:[0.78,1.90,6],  y:-1},
+  {name:'ZnO',    x:[0.71,1.79,4],  y:-1},
+  {name:'Al₂O₃',  x:[0.65,2.03,6],  y:-1},
+  {name:'FeS',    x:[0.72,0.43,6],  y:-1},
+  {name:'MnO',    x:[0.96,1.55,6],  y: 1},
+  {name:'CrO₂',   x:[0.74,1.54,6],  y:-1},
+];
+const FNAMES = ['τ','ΔEN','CN'];
+const FMIN   = [0.55, 0.0, 3];
+const FMAX   = [1.15, 3.2, 9];
+
+// ── Standardise ──────────────────────────────────────────────
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr){ const m=mean(arr); return Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length)||1; }
+const rawX = DATA.map(d=>d.x);
+const mu  = [0,1,2].map(f=>mean(rawX.map(x=>x[f])));
+const sig = [0,1,2].map(f=>std(rawX.map(x=>x[f])));
+function standardise(x){ return x.map((v,i)=>(v-mu[i])/sig[i]); }
+const Xstd = rawX.map(standardise);
+const y    = DATA.map(d=>d.y);
+
+// ── Kernels ──────────────────────────────────────────────────
+function dotProduct(a,b){ return a.reduce((s,v,i)=>s+v*b[i],0); }
+function norm2(a){ return Math.sqrt(dotProduct(a,a)); }
+
+function kernelFn(kernel, gamma){
+  if(kernel==='linear') return (a,b)=>dotProduct(a,b);
+  if(kernel==='rbf')    return (a,b)=>{const d=a.map((v,i)=>v-b[i]); return Math.exp(-gamma*dotProduct(d,d));};
+  if(kernel==='poly')   return (a,b)=>Math.pow(gamma*dotProduct(a,b)+1, 2);
+  return (a,b)=>dotProduct(a,b);
+}
+
+// ── SMO-style SVM (simplified, 2-class, soft margin) ─────────
+function trainSVM(kernel, C, maxIter=300){
+  const n=Xstd.length;
+  const K=kernelFn(kernel, gamma);
+  // precompute kernel matrix
+  const Km=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>K(Xstd[i],Xstd[j])));
+  let alpha=new Array(n).fill(0);
+  let b=0;
+  const tol=1e-3;
+  for(let iter=0;iter<maxIter;iter++){
+    let changed=0;
+    for(let i=0;i<n;i++){
+      const Ei=decisionRaw(i,alpha,b,Km)-y[i];
+      if((y[i]*Ei<-tol&&alpha[i]<C)||(y[i]*Ei>tol&&alpha[i]>0)){
+        // pick j != i randomly
+        let j=(i+1+Math.floor(Math.random()*(n-1)))%n;
+        const Ej=decisionRaw(j,alpha,b,Km)-y[j];
+        const aio=alpha[i], ajo=alpha[j];
+        let Lo,Hi;
+        if(y[i]===y[j]){ Lo=Math.max(0,alpha[i]+alpha[j]-C); Hi=Math.min(C,alpha[i]+alpha[j]); }
+        else            { Lo=Math.max(0,alpha[j]-alpha[i]);   Hi=Math.min(C,C+alpha[j]-alpha[i]); }
+        if(Lo>=Hi) continue;
+        const eta=2*Km[i][j]-Km[i][i]-Km[j][j];
+        if(eta>=0) continue;
+        alpha[j]=Math.min(Hi,Math.max(Lo,alpha[j]-y[j]*(Ei-Ej)/eta));
+        if(Math.abs(alpha[j]-ajo)<1e-5){ alpha[j]=ajo; continue; }
+        alpha[i]+=y[i]*y[j]*(ajo-alpha[j]);
+        const b1=b-Ei-y[i]*(alpha[i]-aio)*Km[i][i]-y[j]*(alpha[j]-ajo)*Km[i][j];
+        const b2=b-Ej-y[i]*(alpha[i]-aio)*Km[i][j]-y[j]*(alpha[j]-ajo)*Km[j][j];
+        b=(alpha[i]>0&&alpha[i]<C)?b1:(alpha[j]>0&&alpha[j]<C)?b2:(b1+b2)/2;
+        changed++;
+      }
+    }
+    if(!changed) break;
+  }
+  return {alpha,b,Km};
+}
+let gamma=1.0, C=1.0;
+function decisionRaw(i,alpha,b,Km){
+  return alpha.reduce((s,a,j)=>s+a*y[j]*Km[j][i],0)+b;
+}
+function decisionPoint(xrow,alpha,b,kernel){
+  const xs=standardise(xrow);
+  const K=kernelFn(kernel,gamma);
+  return Xstd.reduce((s,xj,j)=>s+alpha[j]*y[j]*K(xj,xs),0)+b;
+}
+
+// ── Drawing ──────────────────────────────────────────────────
+function drawBoundary(alpha,b,kernel,xFeat,yFeat){
+  const c=document.getElementById('boundary');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=44;
+  ctx.clearRect(0,0,W,H);
+  const toX=v=>pad+(v-FMIN[xFeat])/(FMAX[xFeat]-FMIN[xFeat])*(W-2*pad);
+  const toY=v=>H-pad-(v-FMIN[yFeat])/(FMAX[yFeat]-FMIN[yFeat])*(H-2*pad);
+  // median for unused feature
+  const med=[0,1,2].map(f=>mean(rawX.map(x=>x[f])));
+
+  // background regions
+  const res=6;
+  for(let px=pad;px<W-pad;px+=res){
+    for(let py=pad;py<H-pad;py+=res){
+      const vx=FMIN[xFeat]+(px-pad)/(W-2*pad)*(FMAX[xFeat]-FMIN[xFeat]);
+      const vy=FMIN[yFeat]+(H-pad-py)/(H-2*pad)*(FMAX[yFeat]-FMIN[yFeat]);
+      const row=[...med]; row[xFeat]=vx; row[yFeat]=vy;
+      const score=decisionPoint(row,alpha,b,kernel);
+      ctx.fillStyle=score>0?'rgba(26,82,118,0.12)':'rgba(153,60,29,0.12)';
+      ctx.fillRect(px,py,res,res);
+    }
+  }
+
+  // margin lines (score = ±1) — approximate as contour pass
+  // draw decision boundary as score=0 contour (marching squares simplified)
+  ctx.strokeStyle='#1a5276'; ctx.lineWidth=2.5; ctx.setLineDash([]);
+  ctx.beginPath(); let bstarted=false;
+  for(let px=pad;px<W-pad;px+=3){
+    const vx=FMIN[xFeat]+(px-pad)/(W-2*pad)*(FMAX[xFeat]-FMIN[xFeat]);
+    // scan y for zero crossing
+    let prevS=null;
+    for(let py=H-pad;py>=pad;py-=3){
+      const vy=FMIN[yFeat]+(H-pad-py)/(H-2*pad)*(FMAX[yFeat]-FMIN[yFeat]);
+      const row=[...med]; row[xFeat]=vx; row[yFeat]=vy;
+      const s=decisionPoint(row,alpha,b,kernel);
+      if(prevS!==null&&Math.sign(s)!==Math.sign(prevS)){
+        if(!bstarted){ctx.moveTo(px,py);bstarted=true;} else ctx.lineTo(px,py);
+      }
+      prevS=s;
+    }
+  }
+  ctx.stroke();
+
+  // margin lines score = +1
+  ctx.strokeStyle='rgba(26,82,118,0.35)'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
+  for(const sign of [1,-1]){
+    ctx.beginPath(); bstarted=false;
+    for(let px=pad;px<W-pad;px+=3){
+      const vx=FMIN[xFeat]+(px-pad)/(W-2*pad)*(FMAX[xFeat]-FMIN[xFeat]);
+      let prevS=null,prevDiff=null;
+      for(let py=H-pad;py>=pad;py-=3){
+        const vy=FMIN[yFeat]+(H-pad-py)/(H-2*pad)*(FMAX[yFeat]-FMIN[yFeat]);
+        const row=[...med]; row[xFeat]=vx; row[yFeat]=vy;
+        const s=decisionPoint(row,alpha,b,kernel)-sign;
+        if(prevDiff!==null&&Math.sign(s)!==Math.sign(prevDiff)){
+          if(!bstarted){ctx.moveTo(px,py);bstarted=true;} else ctx.lineTo(px,py);
+        }
+        prevDiff=s;
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // axes
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1;
+  ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle='#444'; ctx.font='10px IBM Plex Mono';
+  ctx.fillText(FNAMES[xFeat]+' →',W/2-16,H-8);
+  ctx.save(); ctx.translate(12,H/2+20); ctx.rotate(-Math.PI/2); ctx.fillText(FNAMES[yFeat]+' →',0,0); ctx.restore();
+
+  // support vector set
+  const svIdx=alpha.map((a,i)=>a>1e-4?i:-1).filter(i=>i>=0);
+
+  // data points
+  DATA.forEach((pt,i)=>{
+    const px=toX(pt.x[xFeat]), py=toY(pt.x[yFeat]);
+    const isSV=svIdx.includes(i);
+    if(isSV){
+      ctx.beginPath(); ctx.arc(px,py,11,0,2*Math.PI);
+      ctx.strokeStyle='#f5c842'; ctx.lineWidth=3; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(px,py,6,0,2*Math.PI);
+    ctx.fillStyle=pt.y===1?'#1a5276':'#993c1d'; ctx.fill();
+    ctx.fillStyle='#111'; ctx.font='9px IBM Plex Mono';
+    ctx.fillText(pt.name,px+10,py+3);
+  });
+}
+
+function drawScores(scores){
+  const c=document.getElementById('scores');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=44,barW=26;
+  ctx.clearRect(0,0,W,H);
+  const maxAbs=Math.max(...scores.map(Math.abs),1);
+  const n=scores.length;
+  const step=(W-2*pad)/n;
+  // zero line
+  const zeroY=H/2;
+  ctx.strokeStyle='#ccc'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(pad,zeroY); ctx.lineTo(W-pad,zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#888'; ctx.font='9px IBM Plex Mono'; ctx.fillText('0',pad-18,zeroY+3);
+  ctx.fillText('+1',pad-22,zeroY-H/2*1/maxAbs+3);
+  ctx.fillText('−1',pad-22,zeroY+H/2*1/maxAbs+3);
+
+  // ±1 margin lines
+  for(const s of [1,-1]){
+    const ly=zeroY-s*(H/2-pad)*0.95/maxAbs;
+    ctx.strokeStyle='rgba(26,82,118,0.3)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad,ly); ctx.lineTo(W-pad,ly); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  scores.forEach((score, i) => {
+    const x=pad+i*step+step/2-barW/2;
+    const barH=Math.abs(score)*(H/2-pad)*0.95/maxAbs;
+    const barY=score>=0?zeroY-barH:zeroY;
+    ctx.fillStyle=DATA[i].y===1?'rgba(26,82,118,0.7)':'rgba(153,60,29,0.7)';
+    ctx.fillRect(x,barY,barW,barH);
+    ctx.fillStyle='#444'; ctx.font='8px IBM Plex Mono';
+    ctx.save(); ctx.translate(x+barW/2,H-6); ctx.rotate(-Math.PI/3);
+    ctx.fillText(DATA[i].name,0,0); ctx.restore();
+    ctx.fillStyle='#111'; ctx.font='8px IBM Plex Mono';
+    ctx.fillText(score.toFixed(2),x,score>=0?barY-3:barY+barH+9);
+  });
+}
+
+function updateUI(alpha,b,kernel,scores){
+  const svIdx=alpha.map((a,i)=>a>1e-4?i:-1).filter(i=>i>=0);
+  const preds=scores.map(s=>s>=0?1:-1);
+  const acc=(preds.filter((p,i)=>p===y[i]).length/y.length).toFixed(2);
+  // approximate margin = 2/||w|| for linear; for others approximate from support vector distances
+  const marginApprox=svIdx.length>0?(2/(svIdx.reduce((s,i)=>s+Math.abs(scores[i]),0)/svIdx.length||1)).toFixed(3):'–';
+
+  document.getElementById('mAcc').textContent=acc;
+  document.getElementById('mSV').textContent=svIdx.length;
+  document.getElementById('mMargin').textContent=marginApprox;
+  document.getElementById('marginVal').textContent='Margin ≈ '+marginApprox;
+  document.getElementById('marginBar').style.width=Math.min(100,parseFloat(marginApprox)*30)+'%';
+
+  const svDiv=document.getElementById('svList');
+  if(svIdx.length===0){ svDiv.innerHTML='<div style="color:var(--muted)">No support vectors found — try adjusting C or γ</div>'; }
+  else {
+    svDiv.innerHTML=svIdx.map(i=>`<div>${DATA[i].name} <span class="sv-tag">α=${alpha[i].toFixed(3)}</span> <span class="sv-tag">${DATA[i].y===1?'Cubic':'Non-cubic'}</span></div>`).join('');
+  }
+
+  const st=document.getElementById('scoreTable');
+  st.innerHTML=scores.map((s,i)=>{
+    const ok=Math.sign(s)===y[i];
+    return `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border);color:${ok?'var(--text)':'var(--coral)'}">
+      <span>${DATA[i].name}</span>
+      <span>${s>=0?'+':'-'}${Math.abs(s).toFixed(3)} ${ok?'✓':'✗'}</span>
+    </div>`;
+  }).join('');
+}
+
+function run(){
+  const kernel=document.getElementById('kernel').value;
+  const xFeat=parseInt(document.getElementById('xAxis').value);
+  const yFeat=parseInt(document.getElementById('yAxis').value);
+  C=Math.pow(10,parseFloat(document.getElementById('cSlider').value));
+  gamma=Math.pow(10,parseFloat(document.getElementById('gSlider').value));
+
+  document.getElementById('cVal').textContent=C.toFixed(C<10?2:0);
+  document.getElementById('gVal').textContent=gamma.toFixed(gamma<10?2:0);
+
+  const {alpha,b,Km}=trainSVM(kernel,C);
+  const scores=Xstd.map((_,i)=>decisionRaw(i,alpha,b,Km));
+  drawBoundary(alpha,b,kernel,xFeat,yFeat);
+  drawScores(scores);
+  updateUI(alpha,b,kernel,scores);
+}
+
+// slider live labels
+document.getElementById('cSlider').addEventListener('input',function(){
+  document.getElementById('cVal').textContent=Math.pow(10,parseFloat(this.value)).toFixed(2);
+});
+document.getElementById('gSlider').addEventListener('input',function(){
+  document.getElementById('gVal').textContent=Math.pow(10,parseFloat(this.value)).toFixed(2);
+});
+document.getElementById('runBtn').addEventListener('click',run);
+
+run();
+</script>
+</body>
+</html>
