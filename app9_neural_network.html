@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App 9 — Neural Network Forward Pass Visualiser</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#ffffff; --surface:#f7f6f2; --border:#e0ddd6;
+    --accent:#1a5276; --accent2:#0f6e56; --warn:#854f0b;
+    --text:#0d0d0d; --muted:#444444; --heading:#000000;
+    --code-bg:#f0ede4; --tag-bg:#d4e6f1; --coral:#993c1d;
+    --metal:#1a5276; --semi:#854f0b; --insul:#993c1d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:15px; line-height:1.6; padding:20px 14px 60px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-family:'Playfair Display',serif; font-size:clamp(20px,3.5vw,28px); margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+
+  /* Controls */
+  .top-row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:18px; }
+  .ctrl { display:flex; flex-direction:column; gap:4px; }
+  .ctrl label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  select { font-family:'IBM Plex Sans',sans-serif; font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
+  .btn { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 18px; font-weight:600; font-size:13px; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; }
+  .btn:hover { background:var(--accent2); }
+  .btn.secondary { background:var(--surface); color:var(--accent); border:1px solid var(--accent); }
+  .btn.secondary:hover { background:var(--tag-bg); }
+
+  /* Main grid */
+  .main { display:grid; grid-template-columns:320px 1fr; gap:16px; }
+  @media(max-width:900px){ .main { grid-template-columns:1fr; } }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+  .panel h2 { font-size:11px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); margin-bottom:12px; font-weight:600; }
+
+  /* Network canvas */
+  #netCanvas { width:100%; height:auto; display:block; background:#fff; border:1px solid var(--border); border-radius:8px; }
+
+  /* Weight sliders panel */
+  .slider-group { margin-bottom:14px; }
+  .sg-title { font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); margin-bottom:8px; }
+  .sl-row { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .sl-row label { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); width:60px; flex-shrink:0; }
+  .sl-row input[type=range] { flex:1; accent-color:var(--accent); }
+  .sl-row span { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--accent); width:38px; text-align:right; }
+
+  /* Step-by-step panel */
+  .steps-panel { margin-top:14px; }
+  .step-box { border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin:8px 0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.8; background:#fff; }
+  .step-box .step-title { font-weight:600; color:var(--accent); margin-bottom:4px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .step-box .vec { color:var(--accent2); }
+  .step-box .relu-dead { color:var(--coral); text-decoration:line-through; }
+  .step-box .relu-live { color:var(--accent2); }
+
+  /* Output prediction */
+  .pred-row { display:flex; gap:10px; margin-top:14px; }
+  .pred-card { flex:1; border-radius:8px; padding:12px; text-align:center; border:2px solid var(--border); transition:all .2s; }
+  .pred-card.winner { border-color:var(--accent2); background:#e1f5ee; }
+  .pred-card .pc-label { font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:4px; }
+  .pred-card .pc-prob { font-size:22px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--accent); }
+  .pred-card.winner .pc-prob { color:var(--accent2); }
+  .pred-card .pc-bar-bg { background:var(--border); border-radius:3px; height:6px; margin-top:6px; }
+  .pred-card .pc-bar { height:6px; border-radius:3px; background:var(--accent2); transition:width .3s; }
+
+  .loss-box { margin-top:12px; padding:10px 14px; background:var(--code-bg); border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  .loss-box .lv { font-size:20px; font-weight:700; color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 9 — Neural Network Forward Pass Visualiser</h1>
+  <p class="sub">3 → 4 → 3 network · Metal / Semiconductor / Insulator · adjust weights and watch the signal flow</p>
+
+  <div class="top-row">
+    <div class="ctrl">
+      <label>Compound</label>
+      <select id="compound">
+        <option value="0">FeS (Metal)</option>
+        <option value="1">FeS₂ (Semiconductor)</option>
+        <option value="2">NiO (Insulator)</option>
+        <option value="3">NiS (Metal)</option>
+        <option value="4">MnTe (Semiconductor)</option>
+        <option value="5">MnS (Insulator)</option>
+        <option value="6">CrO₂ (Metal)</option>
+        <option value="7">Cr₂O₃ (Insulator)</option>
+        <option value="8">CoO (Insulator)</option>
+        <option value="9">CoS₂ (Metal)</option>
+        <option value="10">TiO (Metal)</option>
+        <option value="11">TiO₂ (Insulator)</option>
+      </select>
+    </div>
+    <button class="btn secondary" id="randomBtn">🎲 Random weights</button>
+    <button class="btn secondary" id="resetBtn">↺ Reset weights</button>
+    <button class="btn" id="runBtn">▶ Forward pass</button>
+  </div>
+
+  <div class="main">
+    <!-- Left: weights + steps -->
+    <div>
+      <div class="panel">
+        <h2>Layer 1 Weights W¹ (3→4)</h2>
+        <div id="w1sliders"></div>
+        <h2 style="margin-top:14px">Layer 2 Weights W² (4→3)</h2>
+        <div id="w2sliders"></div>
+      </div>
+
+      <div class="panel steps-panel" style="margin-top:14px">
+        <h2>Step-by-step trace</h2>
+        <div id="stepTrace"></div>
+        <div class="pred-row" id="predRow"></div>
+        <div class="loss-box" id="lossBox" style="display:none">
+          <span>Cross-entropy loss</span><span class="lv" id="lossVal">–</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: network diagram -->
+    <div class="panel">
+      <h2>Network Diagram — signal strength = line thickness</h2>
+      <canvas id="netCanvas" width="620" height="540"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────
+const RAW = [
+  [0.43,6,0.00],[0.43,6,0.95],[1.40,8,3.10],[0.43,8,0.00],
+  [0.61,5,1.40],[0.93,5,2.30],[1.54,2,0.00],[1.54,3,2.80],
+  [1.40,7,2.40],[0.43,7,0.00],[1.54,2,0.00],[1.54,0,3.00]
+];
+const LABELS = [0,1,2,0,1,2,0,2,2,0,0,2];
+const CNAMES = ['Metal','Semiconductor','Insulator'];
+const FNAMES = ['ΔEN','n_d','Eg'];
+const CCOLORS= ['#1a5276','#854f0b','#993c1d'];
+
+// Standardise
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr){ const m=mean(arr); return Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length)||1; }
+const mu=[0,1,2].map(f=>mean(RAW.map(r=>r[f])));
+const sg=[0,1,2].map(f=>std(RAW.map(r=>r[f])));
+const X=RAW.map(r=>r.map((v,i)=>(v-mu[i])/sg[i]));
+
+// ── Weight state ──────────────────────────────────────────────
+// W1: 4 neurons, each with 3 inputs → 12 weights + 4 biases
+// W2: 3 neurons, each with 4 inputs → 12 weights + 3 biases
+let W1=[], b1=[], W2=[], b2=[];
+
+function initWeights(random=false){
+  const r=()=>random?(Math.random()*2-1)*0.8:0.1;
+  W1=Array.from({length:4},()=>Array.from({length:3},r));
+  b1=Array.from({length:4},()=>random?r()*0.3:0);
+  W2=Array.from({length:3},()=>Array.from({length:4},r));
+  b2=Array.from({length:3},()=>random?r()*0.3:0);
+}
+initWeights(false);
+
+// ── Activation functions ──────────────────────────────────────
+function relu(v){ return Math.max(0,v); }
+function softmax(z){
+  const m=Math.max(...z);
+  const e=z.map(v=>Math.exp(v-m));
+  const s=e.reduce((a,b)=>a+b,0);
+  return e.map(v=>v/s);
+}
+function dot(a,b){ return a.reduce((s,v,i)=>s+v*b[i],0); }
+
+// ── Forward pass ──────────────────────────────────────────────
+function forward(xi){
+  const z1=W1.map((w,j)=>dot(w,xi)+b1[j]);
+  const a1=z1.map(relu);
+  const z2=W2.map((w,j)=>dot(w,a1)+b2[j]);
+  const yhat=softmax(z2);
+  return {z1,a1,z2,yhat};
+}
+
+// ── Sliders ───────────────────────────────────────────────────
+function buildSliders(){
+  const w1div=document.getElementById('w1sliders');
+  w1div.innerHTML='';
+  W1.forEach((w,j)=>{
+    const g=document.createElement('div'); g.className='slider-group';
+    g.innerHTML=`<div class="sg-title">Hidden neuron H${j+1}</div>`;
+    w.forEach((v,i)=>{
+      const id=`w1_${j}_${i}`;
+      const row=document.createElement('div'); row.className='sl-row';
+      row.innerHTML=`<label>${FNAMES[i]}→H${j+1}</label>
+        <input type="range" id="${id}" min="-2" max="2" step="0.05" value="${v.toFixed(2)}">
+        <span id="${id}_v">${v.toFixed(2)}</span>`;
+      g.appendChild(row);
+    });
+    // bias
+    const bid=`b1_${j}`;
+    const brow=document.createElement('div'); brow.className='sl-row';
+    brow.innerHTML=`<label>bias b${j+1}</label>
+      <input type="range" id="${bid}" min="-2" max="2" step="0.05" value="${b1[j].toFixed(2)}">
+      <span id="${bid}_v">${b1[j].toFixed(2)}</span>`;
+    g.appendChild(brow);
+    w1div.appendChild(g);
+  });
+
+  const w2div=document.getElementById('w2sliders');
+  w2div.innerHTML='';
+  W2.forEach((w,j)=>{
+    const g=document.createElement('div'); g.className='slider-group';
+    g.innerHTML=`<div class="sg-title">Output ${CNAMES[j]}</div>`;
+    w.forEach((v,i)=>{
+      const id=`w2_${j}_${i}`;
+      const row=document.createElement('div'); row.className='sl-row';
+      row.innerHTML=`<label>H${i+1}→O${j+1}</label>
+        <input type="range" id="${id}" min="-2" max="2" step="0.05" value="${v.toFixed(2)}">
+        <span id="${id}_v">${v.toFixed(2)}</span>`;
+      g.appendChild(row);
+    });
+    const bid=`b2_${j}`;
+    const brow=document.createElement('div'); brow.className='sl-row';
+    brow.innerHTML=`<label>bias b${j+1}</label>
+      <input type="range" id="${bid}" min="-2" max="2" step="0.05" value="${b2[j].toFixed(2)}">
+      <span id="${bid}_v">${b2[j].toFixed(2)}</span>`;
+    g.appendChild(brow);
+    w2div.appendChild(g);
+  });
+
+  // attach listeners
+  document.querySelectorAll('input[type=range][id^=w1]').forEach(el=>{
+    el.addEventListener('input',function(){
+      const [,j,i]=this.id.split('_').map(Number);
+      if(i!==undefined){ W1[j][i]=parseFloat(this.value); document.getElementById(this.id+'_v').textContent=parseFloat(this.value).toFixed(2); }
+    });
+  });
+  document.querySelectorAll('input[type=range][id^=b1]').forEach(el=>{
+    el.addEventListener('input',function(){
+      const j=parseInt(this.id.split('_')[1]);
+      b1[j]=parseFloat(this.value); document.getElementById(this.id+'_v').textContent=parseFloat(this.value).toFixed(2);
+    });
+  });
+  document.querySelectorAll('input[type=range][id^=w2]').forEach(el=>{
+    el.addEventListener('input',function(){
+      const [,j,i]=this.id.split('_').map(Number);
+      if(i!==undefined){ W2[j][i]=parseFloat(this.value); document.getElementById(this.id+'_v').textContent=parseFloat(this.value).toFixed(2); }
+    });
+  });
+  document.querySelectorAll('input[type=range][id^=b2]').forEach(el=>{
+    el.addEventListener('input',function(){
+      const j=parseInt(this.id.split('_')[1]);
+      b2[j]=parseFloat(this.value); document.getElementById(this.id+'_v').textContent=parseFloat(this.value).toFixed(2);
+    });
+  });
+}
+
+// ── Network canvas ────────────────────────────────────────────
+function drawNetwork(xi, fwd){
+  const c=document.getElementById('netCanvas');
+  const ctx=c.getContext('2d');
+  const W=c.width, H=c.height;
+  ctx.clearRect(0,0,W,H);
+
+  const layers=[[0,1,2],[0,1,2,3],[0,1,2]];
+  const xPos=[80, W/2, W-80];
+  const nPerLayer=[3,4,3];
+  const nodeR=18;
+
+  function nodeY(layer,idx){
+    const n=nPerLayer[layer];
+    const spacing=H/(n+1);
+    return spacing*(idx+1);
+  }
+
+  const activations=[
+    xi,
+    fwd ? fwd.a1 : new Array(4).fill(0),
+    fwd ? fwd.yhat : new Array(3).fill(1/3),
+  ];
+  const preAct=[
+    xi,
+    fwd ? fwd.z1 : new Array(4).fill(0),
+    fwd ? fwd.z2 : new Array(3).fill(0),
+  ];
+
+  // Draw edges layer 0→1
+  if(fwd){
+    for(let j=0;j<4;j++){
+      for(let i=0;i<3;i++){
+        const w=W1[j][i];
+        const strength=Math.min(Math.abs(w)*2.5,5);
+        ctx.strokeStyle=w>=0?`rgba(26,82,118,${Math.min(0.8,Math.abs(w)*0.6)})`:`rgba(153,60,29,${Math.min(0.8,Math.abs(w)*0.6)})`;
+        ctx.lineWidth=strength;
+        ctx.beginPath();
+        ctx.moveTo(xPos[0]+nodeR, nodeY(0,i));
+        ctx.lineTo(xPos[1]-nodeR, nodeY(1,j));
+        ctx.stroke();
+      }
+    }
+    // layer 1→2
+    for(let j=0;j<3;j++){
+      for(let i=0;i<4;i++){
+        const w=W2[j][i];
+        const strength=Math.min(Math.abs(w)*2.5,5);
+        ctx.strokeStyle=w>=0?`rgba(26,82,118,${Math.min(0.8,Math.abs(w)*0.6)})`:`rgba(153,60,29,${Math.min(0.8,Math.abs(w)*0.6)})`;
+        ctx.lineWidth=strength;
+        ctx.beginPath();
+        ctx.moveTo(xPos[1]+nodeR, nodeY(1,i));
+        ctx.lineTo(xPos[2]-nodeR, nodeY(2,j));
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw nodes
+  const layerLabels=['Input','Hidden (ReLU)','Output (Softmax)'];
+  const nodeLabels=[FNAMES,['H1','H2','H3','H4'],CNAMES.map(c=>c.slice(0,4))];
+  xPos.forEach((lx,li)=>{
+    ctx.fillStyle=CCOLORS[0]; ctx.font='bold 10px IBM Plex Mono';
+    ctx.fillText(layerLabels[li], lx-32, 16);
+    nPerLayer[li] && Array.from({length:nPerLayer[li]}).forEach((_,ni)=>{
+      const cy=nodeY(li,ni);
+      const act=activations[li][ni];
+      const pre=preAct[li][ni];
+      // colour based on activation
+      const intensity=Math.min(Math.abs(act)/2,1);
+      const dead= li===1 && fwd && fwd.z1[ni]<0;
+      ctx.beginPath(); ctx.arc(lx,cy,nodeR,0,2*Math.PI);
+      ctx.fillStyle=dead?'#f7f6f2':li===2?CCOLORS[ni]:`rgba(26,82,118,${0.15+intensity*0.7})`;
+      ctx.fill();
+      ctx.strokeStyle=dead?'#ccc':li===2?CCOLORS[ni]:'#1a5276';
+      ctx.lineWidth=2; ctx.stroke();
+
+      // label
+      ctx.fillStyle=dead?'#aaa':(intensity>0.5||li===2)?'#fff':'#1a5276';
+      ctx.font='bold 9px IBM Plex Mono'; ctx.textAlign='center';
+      ctx.fillText(nodeLabels[li][ni], lx, cy-5);
+      if(fwd){
+        ctx.font='8px IBM Plex Mono';
+        ctx.fillText(act.toFixed(2), lx, cy+7);
+      }
+      ctx.textAlign='left';
+    });
+  });
+
+  // Legend
+  ctx.fillStyle='#888'; ctx.font='9px IBM Plex Mono';
+  ctx.fillText('Blue edge = positive weight   Red edge = negative weight   Line thickness ∝ |w|', 10, H-8);
+}
+
+// ── Step trace ────────────────────────────────────────────────
+function renderTrace(xi, fwd, ci){
+  const trueClass=LABELS[ci];
+  const {z1,a1,z2,yhat}=fwd;
+  const pred=yhat.indexOf(Math.max(...yhat));
+  const loss=-Math.log(Math.max(yhat[trueClass],1e-10));
+
+  const fmt=v=>(v>=0?'+':'')+v.toFixed(3);
+  const vecStr=arr=>'['+arr.map(v=>fmt(v)).join(', ')+']';
+
+  document.getElementById('stepTrace').innerHTML=`
+    <div class="step-box">
+      <div class="step-title">Step 1 — Standardised input x</div>
+      <span class="vec">${vecStr(xi)}</span><br/>
+      <small style="color:var(--muted)">[ΔEN, n_d, Eg] — zero mean, unit variance</small>
+    </div>
+    <div class="step-box">
+      <div class="step-title">Step 2 — Hidden pre-activation z¹ = W¹·x + b¹</div>
+      <span class="vec">${vecStr(z1)}</span>
+    </div>
+    <div class="step-box">
+      <div class="step-title">Step 3 — ReLU: a¹ = max(0, z¹)</div>
+      ${z1.map((v,i)=>`<span class="${v<0?'relu-dead':'relu-live'}">${fmt(v)} → ${fmt(a1[i])}</span>`).join('&nbsp;&nbsp;')}
+    </div>
+    <div class="step-box">
+      <div class="step-title">Step 4 — Output logits z² = W²·a¹ + b²</div>
+      <span class="vec">${vecStr(z2)}</span><br/>
+      <small style="color:var(--muted)">Metal: ${fmt(z2[0])} &nbsp; Semi: ${fmt(z2[1])} &nbsp; Insulator: ${fmt(z2[2])}</small>
+    </div>
+    <div class="step-box">
+      <div class="step-title">Step 5 — Softmax probabilities ŷ</div>
+      ${CNAMES.map((n,i)=>`<span style="color:${CCOLORS[i]};font-weight:${pred===i?700:400}">${n}: ${(yhat[i]*100).toFixed(1)}%</span>`).join('&nbsp;&nbsp;')}
+    </div>`;
+
+  // Prediction cards
+  document.getElementById('predRow').innerHTML=CNAMES.map((n,i)=>`
+    <div class="pred-card ${pred===i?'winner':''}">
+      <div class="pc-label">${n}</div>
+      <div class="pc-prob">${(yhat[i]*100).toFixed(1)}%</div>
+      <div class="pc-bar-bg"><div class="pc-bar" style="width:${(yhat[i]*100).toFixed(1)}%;background:${CCOLORS[i]}"></div></div>
+    </div>`).join('');
+
+  const lossBox=document.getElementById('lossBox');
+  lossBox.style.display='flex';
+  document.getElementById('lossVal').textContent=loss.toFixed(4);
+  document.getElementById('lossVal').style.color=loss<0.5?'var(--accent2)':loss<1.5?'var(--warn)':'var(--coral)';
+}
+
+// ── Run ───────────────────────────────────────────────────────
+function run(){
+  const ci=parseInt(document.getElementById('compound').value);
+  const xi=X[ci];
+  const fwd=forward(xi);
+  drawNetwork(xi,fwd);
+  renderTrace(xi,fwd,ci);
+}
+
+document.getElementById('runBtn').addEventListener('click',run);
+document.getElementById('randomBtn').addEventListener('click',()=>{ initWeights(true); buildSliders(); run(); });
+document.getElementById('resetBtn').addEventListener('click',()=>{ initWeights(false); buildSliders(); run(); });
+document.getElementById('compound').addEventListener('change',run);
+
+buildSliders();
+run();
+</script>
+</body>
+</html>
