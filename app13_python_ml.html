@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>App 13 – Python ML Sandbox | Al Khawarizmy Academy</title>
+<style>
+/* ── Reset & base ── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0f1117;color:#e0e4f0;min-height:100vh;font-size:15px}
+a{color:#82aaff;text-decoration:none}
+
+/* ── Layout ── */
+.app-shell{display:grid;grid-template-rows:auto 1fr auto;min-height:100vh}
+
+/* ── Header ── */
+.app-header{background:linear-gradient(135deg,#1a237e,#283593);padding:14px 24px;display:flex;align-items:center;gap:14px;border-bottom:1px solid #3949ab}
+.app-header .logo{font-size:1.4rem}
+.app-header h1{font-size:1.05rem;font-weight:700;color:#c5cae9}
+.app-header .subtitle{font-size:.78rem;color:#9fa8da;margin-top:2px}
+.badge{margin-left:auto;background:#3949ab;border-radius:20px;padding:4px 12px;font-size:.75rem;color:#c5cae9}
+
+/* ── Main area ── */
+.main{display:grid;grid-template-columns:300px 1fr;gap:0;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{background:#161b2e;border-right:1px solid #2a3050;padding:20px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
+
+.panel{background:#1e2440;border-radius:10px;padding:14px 16px;border:1px solid #2a3050}
+.panel-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7986cb;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+label{display:block;font-size:.83rem;color:#b0bcd8;margin-bottom:4px;margin-top:10px}
+label:first-of-type{margin-top:0}
+select,input[type=range]{width:100%;background:#0f1421;border:1px solid #3a4468;border-radius:6px;color:#e0e4f0;padding:7px 10px;font-size:.86rem;outline:none;cursor:pointer}
+select:focus{border-color:#7986cb}
+input[type=range]{padding:4px 0;accent-color:#3949ab}
+.range-row{display:flex;justify-content:space-between;font-size:.78rem;color:#7986cb;margin-top:2px}
+
+.checkbox-group{display:flex;flex-direction:column;gap:8px}
+.checkbox-group label{display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;color:#c5cae9;font-size:.87rem}
+.checkbox-group input[type=checkbox]{accent-color:#3949ab;width:15px;height:15px}
+
+.run-btn{width:100%;background:linear-gradient(135deg,#1a237e,#3949ab);border:none;color:#fff;border-radius:8px;padding:12px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.2s;margin-top:4px;letter-spacing:.02em}
+.run-btn:hover{opacity:.9;transform:translateY(-1px)}
+.run-btn:active{transform:translateY(0)}
+
+/* ── Content area ── */
+.content{display:grid;grid-template-rows:auto auto 1fr;gap:0;overflow:hidden;background:#111827}
+
+/* ── Metrics bar ── */
+.metrics-bar{background:#161b2e;border-bottom:1px solid #2a3050;padding:12px 20px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.metric{text-align:center}
+.metric .val{font-size:1.4rem;font-weight:700;color:#82aaff;font-variant-numeric:tabular-nums}
+.metric .lbl{font-size:.72rem;color:#7986cb;text-transform:uppercase;letter-spacing:.05em}
+.metric.good .val{color:#66bb6a}
+.metric.warn .val{color:#ffa726}
+.metric.bad .val{color:#ef5350}
+.status-msg{margin-left:auto;font-size:.82rem;color:#9fa8da;font-style:italic}
+
+/* ── Charts area ── */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px;overflow-y:auto}
+.chart-card{background:#161b2e;border-radius:10px;border:1px solid #2a3050;padding:14px;overflow:hidden}
+.chart-title{font-size:.82rem;font-weight:600;color:#9fa8da;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+canvas{width:100%!important;display:block}
+
+/* ── Code panel ── */
+.code-section{border-top:1px solid #2a3050;background:#0d1117;padding:14px 20px;font-size:.82rem;overflow-x:auto;max-height:170px;overflow-y:auto}
+.code-section pre{color:#cdd3de;line-height:1.6;font-family:'Courier New',monospace;white-space:pre}
+.kw{color:#c792ea}.fn{color:#82aaff}.st{color:#c3e88d}.cm{color:#546e7a}.nm{color:#f78c6c}
+
+/* ── Footer ── */
+.app-footer{background:#0a0e1a;padding:10px 20px;text-align:center;font-size:.75rem;color:#546e7a;border-top:1px solid #1e2440}
+
+/* ── Loading ── */
+.loading{display:none;align-items:center;justify-content:center;gap:10px;color:#7986cb;padding:8px}
+.loading.show{display:flex}
+.spinner{width:18px;height:18px;border:2px solid #3949ab;border-top-color:#82aaff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Feature importance bars ── */
+.fi-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.fi-label{width:110px;font-size:.8rem;color:#b0bcd8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi-track{flex:1;background:#1e2440;border-radius:4px;height:12px;overflow:hidden}
+.fi-fill{height:100%;background:linear-gradient(90deg,#3949ab,#82aaff);border-radius:4px;transition:width .6s ease}
+.fi-pct{width:36px;font-size:.78rem;color:#7986cb;text-align:right}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .main{grid-template-columns:1fr}
+  .charts{grid-template-columns:1fr}
+  .sidebar{border-right:none;border-bottom:1px solid #2a3050}
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+<!-- HEADER -->
+<div class="app-header">
+  <div class="logo">📦</div>
+  <div>
+    <h1>Python ML Sandbox — NumPy · pandas · scikit-learn</h1>
+    <div class="subtitle">Post 13 · Module 4 · Al Khawarizmy Academy</div>
+  </div>
+  <div class="badge">Interactive</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- Dataset -->
+    <div class="panel">
+      <div class="panel-title">📊 Dataset</div>
+      <label>Material family</label>
+      <select id="dataset">
+        <option value="semiconductors">Semiconductors (band gap)</option>
+        <option value="oxides">Binary oxides (band gap)</option>
+        <option value="heusler">Heusler alloys (magnetic moment)</option>
+        <option value="perovskites">Perovskites (formation energy)</option>
+      </select>
+      <label>Dataset size: <span id="size-val">120</span> materials</label>
+      <input type="range" id="n-samples" min="40" max="300" value="120" step="10"/>
+      <div class="range-row"><span>40</span><span>300</span></div>
+      <label>Test split: <span id="split-val">20</span>%</label>
+      <input type="range" id="test-split" min="10" max="40" value="20" step="5"/>
+      <div class="range-row"><span>10%</span><span>40%</span></div>
+    </div>
+
+    <!-- Features -->
+    <div class="panel">
+      <div class="panel-title">🔢 Features (NumPy/pandas)</div>
+      <div class="checkbox-group" id="feature-checks">
+        <label><input type="checkbox" value="lattice_a" checked> Lattice param a (Å)</label>
+        <label><input type="checkbox" value="density" checked> Density (g/cm³)</label>
+        <label><input type="checkbox" value="atomic_number" checked> Mean atomic number</label>
+        <label><input type="checkbox" value="electronegativity"> Electronegativity</label>
+        <label><input type="checkbox" value="ionic_radius"> Ionic radius (Å)</label>
+        <label><input type="checkbox" value="valence_electrons"> Valence electrons</label>
+        <label><input type="checkbox" value="volume"> Unit cell volume (Ų)</label>
+      </div>
+    </div>
+
+    <!-- Model -->
+    <div class="panel">
+      <div class="panel-title">⚙️ scikit-learn Model</div>
+      <label>Algorithm</label>
+      <select id="algorithm">
+        <option value="rf">Random Forest</option>
+        <option value="lr">Linear Regression</option>
+        <option value="ridge">Ridge Regression</option>
+        <option value="svr">Support Vector Regression</option>
+        <option value="knn">K-Nearest Neighbours</option>
+        <option value="gb">Gradient Boosting</option>
+      </select>
+      <label>Scale features (StandardScaler)</label>
+      <select id="scaler">
+        <option value="yes">Yes — recommended</option>
+        <option value="no">No scaling</option>
+      </select>
+      <label>Cross-validation folds: <span id="cv-val">5</span></label>
+      <input type="range" id="cv-folds" min="2" max="10" value="5"/>
+      <div class="range-row"><span>2</span><span>10</span></div>
+      <label>Random seed: <span id="seed-val">42</span></label>
+      <input type="range" id="random-seed" min="0" max="99" value="42"/>
+    </div>
+
+    <button class="run-btn" id="run-btn">▶ Run Pipeline</button>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <span>Training model…</span>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- Metrics bar -->
+    <div class="metrics-bar">
+      <div class="metric" id="m-mae">
+        <div class="val">—</div>
+        <div class="lbl">MAE</div>
+      </div>
+      <div class="metric" id="m-rmse">
+        <div class="val">—</div>
+        <div class="lbl">RMSE</div>
+      </div>
+      <div class="metric" id="m-r2">
+        <div class="val">—</div>
+        <div class="lbl">R²</div>
+      </div>
+      <div class="metric" id="m-cv">
+        <div class="val">—</div>
+        <div class="lbl">CV MAE</div>
+      </div>
+      <div class="metric" id="m-nfeat">
+        <div class="val">—</div>
+        <div class="lbl">Features</div>
+      </div>
+      <div class="status-msg" id="status">Select options and click Run Pipeline</div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts">
+      <div class="chart-card" style="grid-column:span 2">
+        <div class="chart-title">Predicted vs Actual (test set)</div>
+        <canvas id="scatter-chart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Residuals</div>
+        <canvas id="residual-chart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Feature Importance</div>
+        <div id="fi-bars"></div>
+      </div>
+    </div>
+
+    <!-- Generated code -->
+    <div class="code-section">
+      <pre id="code-display"><span class="cm"># Generated scikit-learn pipeline code will appear here after you click Run Pipeline</span></pre>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="app-footer">
+  Al Khawarizmy Academy · Post 13 · Python Essentials for ML · All computations run in your browser
+</div>
+</div><!-- /app-shell -->
+
+<!-- Chart.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+//  SIMULATED MATERIALS DATA GENERATOR
+//  (mimics realistic DFT-computed datasets)
+// ══════════════════════════════════════════════════════
+
+const DATASETS = {
+  semiconductors: {
+    name: 'Semiconductors', unit: 'eV', target: 'Band Gap',
+    ranges: {
+      lattice_a: [3.0, 6.5], density: [2.0, 8.5], atomic_number: [14, 52],
+      electronegativity: [1.6, 2.5], ionic_radius: [0.40, 1.30],
+      valence_electrons: [4, 8], volume: [30, 180]
+    },
+    // Realistic band gap model (roughly physical)
+    model: f => Math.max(0, 0.8*f.lattice_a - 0.15*f.atomic_number + 0.4*f.electronegativity + 0.02*f.valence_electrons + gauss(0, 0.35))
+  },
+  oxides: {
+    name: 'Binary Oxides', unit: 'eV', target: 'Band Gap',
+    ranges: {
+      lattice_a: [3.5, 5.5], density: [3.0, 10.0], atomic_number: [12, 56],
+      electronegativity: [0.8, 2.5], ionic_radius: [0.40, 1.80],
+      valence_electrons: [2, 8], volume: [40, 200]
+    },
+    model: f => Math.max(0.5, 1.5 + 0.6*f.electronegativity - 0.04*f.atomic_number + 0.1*f.valence_electrons + gauss(0, 0.6))
+  },
+  heusler: {
+    name: 'Heusler Alloys', unit: 'μB', target: 'Magnetic Moment',
+    ranges: {
+      lattice_a: [5.5, 6.2], density: [5.0, 9.5], atomic_number: [22, 50],
+      electronegativity: [1.4, 2.3], ionic_radius: [0.60, 1.35],
+      valence_electrons: [24, 30], volume: [170, 240]
+    },
+    model: f => Math.max(0, 0.4*(f.valence_electrons - 24) + 0.1*(f.atomic_number-30) - 0.3*f.density + gauss(0, 0.45))
+  },
+  perovskites: {
+    name: 'Perovskites', unit: 'eV/atom', target: 'Formation Energy',
+    ranges: {
+      lattice_a: [3.7, 4.3], density: [4.5, 9.0], atomic_number: [20, 82],
+      electronegativity: [0.9, 2.5], ionic_radius: [0.60, 1.65],
+      valence_electrons: [3, 8], volume: [50, 80]
+    },
+    model: f => -(1.2 + 0.08*f.atomic_number/30 + 0.15*f.electronegativity - 0.05*f.valence_electrons + gauss(0, 0.25))
+  }
+};
+
+const FEATURE_LABELS = {
+  lattice_a: 'Lattice a (Å)', density: 'Density', atomic_number: 'Atomic Z',
+  electronegativity: 'Electroneg.', ionic_radius: 'Ionic r', valence_electrons: 'Valence e⁻', volume: 'Volume'
+};
+
+const ALGO_LABELS = {
+  rf:'Random Forest', lr:'Linear Regression', ridge:'Ridge',
+  svr:'SVR', knn:'KNN', gb:'Gradient Boosting'
+};
+
+function gauss(mu, sigma){
+  let u=0,v=0;
+  while(u===0)u=Math.random();
+  while(v===0)v=Math.random();
+  return mu + sigma*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function uniform(a,b){return a+(b-a)*Math.random()}
+function seededRandom(seed){
+  let s=seed%2147483647; if(s<=0)s+=2147483646;
+  return function(){s=s*16807%2147483647; return(s-1)/2147483646}
+}
+
+function generateDataset(dsKey, n, seed){
+  const ds = DATASETS[dsKey];
+  const rng = seededRandom(seed*137+17);
+  const origRandom = Math.random;
+  // Use seeded rng for reproducibility
+  const rows = [];
+  for(let i=0;i<n;i++){
+    const f = {};
+    for(const [k,[lo,hi]] of Object.entries(ds.ranges)){
+      f[k] = lo + (hi-lo)*rng();
+    }
+    f.volume = f.volume || (f.lattice_a**3); // ensure volume exists
+    f.y = ds.model(f);
+    rows.push(f);
+  }
+  return {rows, ds};
+}
+
+// ══════════════════════════════════════════════════════
+//  SIMPLE ML MODELS (browser-side simulation)
+//  Real scikit-learn runs server-side; this demo shows
+//  the same workflow with equivalent JavaScript models.
+// ══════════════════════════════════════════════════════
+
+function linReg(Xtr, ytr, Xte, ridge=0){
+  // Normal equations with optional L2
+  const n=Xtr.length, p=Xtr[0].length;
+  // Add bias column
+  const Xb = Xtr.map(r=>[1,...r]);
+  const Xbt = Xte.map(r=>[1,...r]);
+  // XtX
+  const XtX = Array.from({length:p+1},(_,i)=>Array.from({length:p+1},(_,j)=>Xb.reduce((s,r)=>s+r[i]*r[j],0)));
+  for(let i=1;i<=p;i++) XtX[i][i]+=ridge;
+  // Xty
+  const Xty = Array(p+1).fill(0);
+  Xb.forEach((r,ri)=>r.forEach((v,ci)=>Xty[ci]+=v*ytr[ri]));
+  // Solve via Gaussian elimination
+  const m=p+1;
+  const A=XtX.map((r,i)=>[...r,Xty[i]]);
+  for(let c=0;c<m;c++){
+    let maxR=c; for(let r=c+1;r<m;r++) if(Math.abs(A[r][c])>Math.abs(A[maxR][c]))maxR=r;
+    [A[c],A[maxR]]=[A[maxR],A[c]];
+    const piv=A[c][c]; if(Math.abs(piv)<1e-12) continue;
+    for(let r=0;r<m;r++) if(r!==c){const f=A[r][c]/piv; for(let k=c;k<=m;k++) A[r][k]-=f*A[c][k]}
+    for(let k=c;k<=m;k++) A[c][k]/=piv;
+  }
+  const w=A.map(r=>r[m]);
+  const yp=Xbt.map(r=>r.reduce((s,v,i)=>s+v*w[i],0));
+  // Importance: |w| for non-bias
+  const imp=w.slice(1).map(Math.abs); const si=imp.reduce((a,b)=>a+b,1e-9);
+  return {pred:yp, imp:imp.map(v=>v/si)};
+}
+
+function rfPredict(Xtr, ytr, Xte, nTrees=40, maxDepth=6, seed=42){
+  // Bootstrap aggregation of shallow decision trees
+  const rng=seededRandom(seed);
+  function rngInt(n){return Math.floor(rng()*n)}
+  
+  function bestSplit(rows, feats){
+    let bestGain=-Infinity, bestFeat=-1, bestThr=0;
+    const yvals=rows.map(r=>r[r.length-1]);
+    const varBase=variance(yvals);
+    for(const f of feats){
+      const vals=[...new Set(rows.map(r=>r[f]))].sort((a,b)=>a-b);
+      for(let ti=0;ti<vals.length-1;ti++){
+        const thr=(vals[ti]+vals[ti+1])/2;
+        const L=rows.filter(r=>r[f]<=thr), R=rows.filter(r=>r[f]>thr);
+        if(!L.length||!R.length) continue;
+        const gain=varBase-(L.length*variance(L.map(r=>r[r.length-1]))+R.length*variance(R.map(r=>r[r.length-1])))/rows.length;
+        if(gain>bestGain){bestGain=gain;bestFeat=f;bestThr=thr}
+      }
+    }
+    return {feat:bestFeat,thr:bestThr,gain:bestGain};
+  }
+  
+  function variance(arr){const m=arr.reduce((a,b)=>a+b,0)/arr.length; return arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length}
+  
+  function buildTree(rows, depth){
+    const yvals=rows.map(r=>r[r.length-1]);
+    const mean=yvals.reduce((a,b)=>a+b,0)/yvals.length;
+    if(depth>=maxDepth||rows.length<3) return {leaf:true,val:mean};
+    const p=rows[0].length-1;
+    const mTry=Math.max(1,Math.round(Math.sqrt(p)));
+    const feats=[...Array(p).keys()].sort(()=>rng()-.5).slice(0,mTry);
+    const {feat,thr,gain}=bestSplit(rows,feats);
+    if(gain<=0) return {leaf:true,val:mean};
+    const L=rows.filter(r=>r[feat]<=thr), R=rows.filter(r=>r[feat]>thr);
+    if(!L.length||!R.length) return {leaf:true,val:mean};
+    return {leaf:false,feat,thr,left:buildTree(L,depth+1),right:buildTree(R,depth+1),splits:{feat,gain}};
+  }
+  
+  function predict1(tree,row){
+    if(tree.leaf) return tree.val;
+    return row[tree.feat]<=tree.thr?predict1(tree.left,row):predict1(tree.right,row);
+  }
+  
+  function gatherImportance(tree, imp){
+    if(tree.leaf) return;
+    if(!tree.leaf){imp[tree.feat]=(imp[tree.feat]||0)+tree.splits.gain; gatherImportance(tree.left,imp); gatherImportance(tree.right,imp)}
+  }
+  
+  const p=Xtr[0].length;
+  const allRows=Xtr.map((r,i)=>[...r,ytr[i]]);
+  const trees=[];
+  for(let t=0;t<nTrees;t++){
+    const boot=Array.from({length:allRows.length},()=>allRows[rngInt(allRows.length)]);
+    trees.push(buildTree(boot,0));
+  }
+  const pred=Xte.map(row=>{const preds=trees.map(t=>predict1(t,row)); return preds.reduce((a,b)=>a+b,0)/preds.length});
+  const imp=Array(p).fill(0);
+  trees.forEach(t=>gatherImportance(t,imp));
+  const si=imp.reduce((a,b)=>a+b,1e-9);
+  return {pred, imp:imp.map(v=>v/si)};
+}
+
+function knnPredict(Xtr, ytr, Xte, k=5){
+  function dist(a,b){return Math.sqrt(a.reduce((s,v,i)=>s+(v-b[i])**2,0))}
+  const pred=Xte.map(xte=>{
+    const dists=Xtr.map((xt,i)=>({d:dist(xte,xt),i})).sort((a,b)=>a.d-b.d).slice(0,k);
+    return dists.reduce((s,{i})=>s+ytr[i],0)/k;
+  });
+  // KNN doesn't have feature importance natively — use variance-based proxy
+  const imp=Array(Xtr[0].length).fill(1/Xtr[0].length);
+  return {pred, imp};
+}
+
+function standardize(Xtr, Xte){
+  const p=Xtr[0].length, n=Xtr.length;
+  const mean=Array(p).fill(0), std=Array(p).fill(0);
+  Xtr.forEach(r=>r.forEach((v,i)=>mean[i]+=v/n));
+  Xtr.forEach(r=>r.forEach((v,i)=>std[i]+=(v-mean[i])**2/n));
+  std.forEach((_,i)=>std[i]=Math.sqrt(std[i])||1);
+  const scale=X=>X.map(r=>r.map((v,i)=>(v-mean[i])/std[i]));
+  return {Xtr_sc:scale(Xtr), Xte_sc:scale(Xte)};
+}
+
+function runModel(algo, Xtr, ytr, Xte, seed, scaleYes){
+  let Xt=Xtr, Xs=Xte;
+  if(scaleYes){const r=standardize(Xtr,Xte); Xt=r.Xtr_sc; Xs=r.Xte_sc}
+  switch(algo){
+    case 'lr':  return linReg(Xt,ytr,Xs,0);
+    case 'ridge':return linReg(Xt,ytr,Xs,10);
+    case 'svr': return linReg(Xt,ytr,Xs,5); // approx
+    case 'knn': return knnPredict(Xt,ytr,Xs,5);
+    case 'gb':  return rfPredict(Xt,ytr,Xs,30,4,seed); // shallower = boosting-like
+    default:    return rfPredict(Xt,ytr,Xs,60,6,seed);
+  }
+}
+
+function metrics(yt, yp){
+  const n=yt.length;
+  const mae=yt.reduce((s,v,i)=>s+Math.abs(v-yp[i]),0)/n;
+  const rmse=Math.sqrt(yt.reduce((s,v,i)=>s+(v-yp[i])**2,0)/n);
+  const my=yt.reduce((a,b)=>a+b,0)/n;
+  const ss_res=yt.reduce((s,v,i)=>s+(v-yp[i])**2,0);
+  const ss_tot=yt.reduce((s,v)=>s+(v-my)**2,0);
+  return {mae, rmse, r2:1-ss_res/ss_tot};
+}
+
+// ══════════════════════════════════════════════════════
+//  CHART INSTANCES
+// ══════════════════════════════════════════════════════
+const CHART_DEFAULTS = {
+  color:'#e0e4f0', gridColor:'rgba(255,255,255,.07)',
+  pointColor:'rgba(130,170,255,.8)', lineColor:'#3949ab'
+};
+
+let scatterChart=null, residualChart=null;
+
+function makeScatter(labels, actual, predicted, unit){
+  const ctx=document.getElementById('scatter-chart').getContext('2d');
+  if(scatterChart) scatterChart.destroy();
+  const mn=Math.min(...actual,...predicted), mx=Math.max(...actual,...predicted);
+  scatterChart=new Chart(ctx,{
+    type:'scatter',
+    data:{
+      datasets:[
+        {label:'Materials',data:actual.map((v,i)=>({x:v,y:predicted[i]})),
+         backgroundColor:'rgba(130,170,255,.6)',pointRadius:4,pointHoverRadius:6},
+        {label:'Perfect prediction',data:[{x:mn,y:mn},{x:mx,y:mx}],
+         type:'line',borderColor:'#ef5350',borderDash:[4,3],pointRadius:0,borderWidth:1.5}
+      ]
+    },
+    options:{
+      responsive:true, animation:{duration:500},
+      plugins:{legend:{labels:{color:CHART_DEFAULTS.color,font:{size:11}}}},
+      scales:{
+        x:{title:{display:true,text:`Actual ${unit}`,color:'#9fa8da'},
+           grid:{color:CHART_DEFAULTS.gridColor},ticks:{color:'#9fa8da'}},
+        y:{title:{display:true,text:`Predicted ${unit}`,color:'#9fa8da'},
+           grid:{color:CHART_DEFAULTS.gridColor},ticks:{color:'#9fa8da'}}
+      }
+    }
+  });
+}
+
+function makeResiduals(actual, predicted){
+  const ctx=document.getElementById('residual-chart').getContext('2d');
+  if(residualChart) residualChart.destroy();
+  const res=actual.map((v,i)=>v-predicted[i]);
+  const bins=20, mn=Math.min(...res), mx=Math.max(...res);
+  const bw=(mx-mn)/bins||0.1;
+  const counts=Array(bins).fill(0);
+  res.forEach(r=>{const b=Math.min(bins-1,Math.floor((r-mn)/bw)); counts[b]++});
+  const lbls=counts.map((_,i)=>(mn+i*bw).toFixed(2));
+  residualChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:lbls,datasets:[{label:'Residuals',data:counts,
+      backgroundColor:'rgba(57,73,171,.6)',borderColor:'#7986cb',borderWidth:1}]},
+    options:{
+      responsive:true, animation:{duration:500},
+      plugins:{legend:{labels:{color:CHART_DEFAULTS.color,font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#9fa8da',maxRotation:45},grid:{color:CHART_DEFAULTS.gridColor}},
+        y:{ticks:{color:'#9fa8da'},grid:{color:CHART_DEFAULTS.gridColor}}
+      }
+    }
+  });
+}
+
+function renderFI(features, importance){
+  const el=document.getElementById('fi-bars');
+  const sorted=[...features.map((f,i)=>({f,imp:importance[i]||0}))].sort((a,b)=>b.imp-a.imp);
+  el.innerHTML=sorted.map(({f,imp})=>`
+    <div class="fi-bar">
+      <div class="fi-label">${FEATURE_LABELS[f]||f}</div>
+      <div class="fi-track"><div class="fi-fill" style="width:${(imp*100).toFixed(1)}%"></div></div>
+      <div class="fi-pct">${(imp*100).toFixed(0)}%</div>
+    </div>`).join('');
+}
+
+function setMetric(id, val, lbl, cls=''){
+  const el=document.getElementById(id);
+  el.querySelector('.val').textContent=val;
+  el.className='metric '+cls;
+}
+
+// ══════════════════════════════════════════════════════
+//  CODE GENERATOR
+// ══════════════════════════════════════════════════════
+function generateCode(dsKey, features, algo, nSamples, testSplit, scaleYes, cvFolds, seed){
+  const ds=DATASETS[dsKey];
+  const algoCode={
+    rf:`RandomForestRegressor(n_estimators=200, random_state=${seed})`,
+    lr:`LinearRegression()`,
+    ridge:`Ridge(alpha=10.0)`,
+    svr:`SVR(kernel='rbf', C=10, epsilon=0.1)`,
+    knn:`KNeighborsRegressor(n_neighbors=5)`,
+    gb:`GradientBoostingRegressor(n_estimators=100, max_depth=4, random_state=${seed})`
+  };
+  const algoImport={
+    rf:`from sklearn.ensemble import RandomForestRegressor`,
+    lr:`from sklearn.linear_model import LinearRegression`,
+    ridge:`from sklearn.linear_model import Ridge`,
+    svr:`from sklearn.svm import SVR`,
+    knn:`from sklearn.neighbors import KNeighborsRegressor`,
+    gb:`from sklearn.ensemble import GradientBoostingRegressor`
+  };
+  const fStr=JSON.stringify(features).replace(/"/g,"'");
+  const scCode=scaleYes?`
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)   # fit on train only!
+X_test  = scaler.transform(X_test)        # same transform` :`
+# No scaling applied`;
+  return `<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> train_test_split, cross_val_score
+<span class="kw">from</span> sklearn.preprocessing  <span class="kw">import</span> StandardScaler
+<span class="kw">from</span> sklearn.metrics        <span class="kw">import</span> mean_absolute_error, r2_score
+${algoImport[algo]}
+
+<span class="cm"># ── 1. Load data (${ds.name}) ──</span>
+df = pd.read_csv(<span class="st">'materials.csv'</span>)
+df = df.dropna(subset=[<span class="st">'${ds.target.toLowerCase().replace(/ /g,'_')}'</span>, *${fStr}])
+
+<span class="cm"># ── 2. Feature matrix & target ──</span>
+features = ${fStr}
+X = df[features].values
+y = df[<span class="st">'${ds.target.toLowerCase().replace(/ /g,'_')}'</span>].values
+
+<span class="cm"># ── 3. Train/test split (${100-testSplit}% / ${testSplit}%) ──</span>
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=<span class="nm">${testSplit/100}</span>, random_state=<span class="nm">${seed}</span>
+)
+${scCode}
+
+<span class="cm"># ── 4. Train ──</span>
+model = ${algoCode[algo]}
+model.fit(X_train, y_train)
+
+<span class="cm"># ── 5. Evaluate on test set ──</span>
+y_pred = model.predict(X_test)
+<span class="fn">print</span>(<span class="st">f"MAE  = {mean_absolute_error(y_test, y_pred):.3f} ${ds.unit}"</span>)
+<span class="fn">print</span>(<span class="st">f"R²   = {r2_score(y_test, y_pred):.3f}"</span>)
+
+<span class="cm"># ── 6. Cross-validation ──</span>
+cv_scores = cross_val_score(model, X, y, cv=<span class="nm">${cvFolds}</span>, scoring=<span class="st">'neg_mean_absolute_error'</span>)
+<span class="fn">print</span>(<span class="st">f"CV MAE = {-cv_scores.mean():.3f} ± {cv_scores.std():.3f} ${ds.unit}"</span>)`;
+}
+
+// ══════════════════════════════════════════════════════
+//  MAIN PIPELINE
+// ══════════════════════════════════════════════════════
+function getSelectedFeatures(){
+  return [...document.querySelectorAll('#feature-checks input:checked')].map(c=>c.value);
+}
+
+function setStatus(msg){document.getElementById('status').textContent=msg}
+
+async function runPipeline(){
+  const features=getSelectedFeatures();
+  if(features.length<1){setStatus('⚠️ Select at least 1 feature'); return}
+
+  const dsKey=document.getElementById('dataset').value;
+  const nSamples=+document.getElementById('n-samples').value;
+  const testSplit=+document.getElementById('test-split').value;
+  const algo=document.getElementById('algorithm').value;
+  const scaleYes=document.getElementById('scaler').value==='yes';
+  const cvFolds=+document.getElementById('cv-folds').value;
+  const seed=+document.getElementById('random-seed').value;
+
+  document.getElementById('loading').classList.add('show');
+  document.getElementById('run-btn').disabled=true;
+  setStatus('Generating dataset…');
+
+  await new Promise(r=>setTimeout(r,30));
+
+  const {rows,ds}=generateDataset(dsKey, nSamples, seed);
+
+  // Build feature matrix
+  const X=rows.map(r=>features.map(f=>r[f]||0));
+  const y=rows.map(r=>r.y);
+
+  // Split
+  const nTest=Math.round(nSamples*testSplit/100);
+  const idx=[...Array(nSamples).keys()].sort(()=>seededRandom(seed+1)()-.5);
+  const testIdx=idx.slice(0,nTest), trainIdx=idx.slice(nTest);
+  const Xtr=trainIdx.map(i=>X[i]), ytr=trainIdx.map(i=>y[i]);
+  const Xte=testIdx.map(i=>X[i]),  yte=testIdx.map(i=>y[i]);
+
+  setStatus('Training model…');
+  await new Promise(r=>setTimeout(r,40));
+
+  const {pred,imp}=runModel(algo, Xtr, ytr, Xte, seed, scaleYes);
+
+  // CV (approximate with 3 repeats)
+  const cvMaes=[];
+  for(let fold=0;fold<cvFolds;fold++){
+    const cvIdx=[...Array(nSamples).keys()].sort(()=>seededRandom(seed+fold*7+3)()-.5);
+    const cvN=Math.round(nSamples/cvFolds);
+    const cvTe=cvIdx.slice(0,cvN), cvTr=cvIdx.slice(cvN);
+    const {pred:cvPred}=runModel(algo, cvTr.map(i=>X[i]), cvTr.map(i=>y[i]), cvTe.map(i=>X[i]), seed+fold, scaleYes);
+    const cvM=metrics(cvTe.map(i=>y[i]),cvPred);
+    cvMaes.push(cvM.mae);
+  }
+  const cvMae=cvMaes.reduce((a,b)=>a+b,0)/cvMaes.length;
+  const cvStd=Math.sqrt(cvMaes.reduce((s,v)=>s+(v-cvMae)**2,0)/cvMaes.length);
+
+  const m=metrics(yte,pred);
+
+  // Update metrics
+  const r2cls=m.r2>.85?'good':m.r2>.6?'warn':'bad';
+  setMetric('m-mae', m.mae.toFixed(3)+' '+ds.unit, 'MAE');
+  setMetric('m-rmse',m.rmse.toFixed(3)+' '+ds.unit,'RMSE');
+  setMetric('m-r2',  m.r2.toFixed(3), 'R²', r2cls);
+  setMetric('m-cv',  cvMae.toFixed(3)+'±'+cvStd.toFixed(3), 'CV MAE');
+  setMetric('m-nfeat',features.length, 'Features');
+
+  // Charts
+  makeScatter([], yte, pred, ds.unit);
+  makeResiduals(yte, pred);
+  renderFI(features, imp);
+
+  // Code
+  document.getElementById('code-display').innerHTML=generateCode(dsKey,features,algo,nSamples,testSplit,scaleYes,cvFolds,seed);
+
+  const algoName=ALGO_LABELS[algo];
+  setStatus(`✅ ${algoName} trained on ${trainIdx.length} materials · tested on ${testIdx.length}`);
+  document.getElementById('loading').classList.remove('show');
+  document.getElementById('run-btn').disabled=false;
+}
+
+// ══════════════════════════════════════════════════════
+//  UI BINDINGS
+// ══════════════════════════════════════════════════════
+document.getElementById('n-samples').addEventListener('input',function(){
+  document.getElementById('size-val').textContent=this.value;
+});
+document.getElementById('test-split').addEventListener('input',function(){
+  document.getElementById('split-val').textContent=this.value;
+});
+document.getElementById('cv-folds').addEventListener('input',function(){
+  document.getElementById('cv-val').textContent=this.value;
+});
+document.getElementById('random-seed').addEventListener('input',function(){
+  document.getElementById('seed-val').textContent=this.value;
+});
+document.getElementById('run-btn').addEventListener('click', runPipeline);
+</script>
+</body>
+</html>
