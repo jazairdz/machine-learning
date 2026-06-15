@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 14 — Materials Database Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px;}
+
+  /* Filters */
+  .filters{display:flex;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px;align-items:flex-end;}
+  .fctrl{display:flex;flex-direction:column;gap:4px;}
+  .fctrl label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  select,input[type=range],input[type=text]{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);}
+  input[type=range]{padding:0;width:120px;accent-color:var(--accent);}
+  .fval{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-weight:600;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .btn:hover{background:var(--accent2);}
+  .btn.sec{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .btn.sec:hover{background:var(--tag-bg);}
+
+  /* Stats row */
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;flex:1;min-width:120px;text-align:center;}
+  .stat-card .sv{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--accent);}
+  .stat-card .sl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+  /* Main grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+  @media(max-width:860px){.grid,.grid3{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;font-weight:600;}
+  canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--border);border-radius:8px;}
+
+  /* Table */
+  .tbl-wrap{overflow-x:auto;max-height:320px;overflow-y:auto;margin-top:8px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:var(--code-bg);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;padding:8px 10px;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;}
+  td{padding:7px 10px;border-bottom:1px solid var(--border);}
+  tr:hover td{background:var(--tag-bg);}
+  .badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;font-family:'IBM Plex Mono',monospace;}
+  .badge.metal{background:#d4e6f1;color:var(--accent);}
+  .badge.semi{background:#faeeda;color:var(--warn);}
+  .badge.insulator{background:#faece7;color:var(--coral);}
+  .badge.fm{background:#e1f5ee;color:var(--accent2);}
+  .badge.afm{background:#f0e8f5;color:#6c3483;}
+  .badge.nm{background:var(--surface);color:var(--muted);}
+
+  /* Export btn */
+  .export-row{display:flex;gap:8px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 14 — Materials Database Explorer</h1>
+  <p class="sub">Pre-fetched transition-metal chalcogenides MₓCᵧ · Materials Project data · filter, visualise, export</p>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="fctrl">
+      <label>Metal (M)</label>
+      <select id="metalSel">
+        <option value="all">All metals</option>
+        <option value="Fe">Fe</option>
+        <option value="Ni">Ni</option>
+        <option value="Co">Co</option>
+        <option value="Mn">Mn</option>
+        <option value="Cr">Cr</option>
+        <option value="Ti">Ti</option>
+      </select>
+    </div>
+    <div class="fctrl">
+      <label>Chalcogen (C)</label>
+      <select id="chalcSel">
+        <option value="all">All (S, Se, Te)</option>
+        <option value="S">S (sulfide)</option>
+        <option value="Se">Se (selenide)</option>
+        <option value="Te">Te (telluride)</option>
+      </select>
+    </div>
+    <div class="fctrl">
+      <label>Class</label>
+      <select id="classSel">
+        <option value="all">All classes</option>
+        <option value="Metal">Metal</option>
+        <option value="Semiconductor">Semiconductor</option>
+        <option value="Insulator">Insulator</option>
+      </select>
+    </div>
+    <div class="fctrl">
+      <label>Ordering</label>
+      <select id="orderSel">
+        <option value="all">All</option>
+        <option value="FM">FM</option>
+        <option value="AFM">AFM</option>
+        <option value="NM">NM</option>
+      </select>
+    </div>
+    <div class="fctrl">
+      <label>Max E-hull (eV/at) <span class="fval" id="ehullVal">0.10</span></label>
+      <input type="range" id="ehullSlider" min="0" max="0.5" step="0.01" value="0.10">
+    </div>
+    <div class="fctrl">
+      <label>Max Eg (eV) <span class="fval" id="egVal">5.0</span></label>
+      <input type="range" id="egSlider" min="0" max="5" step="0.1" value="5.0">
+    </div>
+    <div class="fctrl">
+      <label>X axis (scatter)</label>
+      <select id="xSel">
+        <option value="band_gap" selected>Band Gap (eV)</option>
+        <option value="e_above_hull">E-hull (eV/at)</option>
+        <option value="mag_moment">Mag. Moment (μB)</option>
+        <option value="volume">Volume (Å³)</option>
+        <option value="spacegroup">Space Group #</option>
+      </select>
+    </div>
+    <div class="fctrl">
+      <label>Y axis (scatter)</label>
+      <select id="ySel">
+        <option value="e_above_hull" selected>E-hull (eV/at)</option>
+        <option value="band_gap">Band Gap (eV)</option>
+        <option value="mag_moment">Mag. Moment (μB)</option>
+        <option value="volume">Volume (Å³)</option>
+        <option value="spacegroup">Space Group #</option>
+      </select>
+    </div>
+    <button class="btn" id="applyBtn">🔍 Apply Filters</button>
+    <button class="btn sec" id="resetBtn">↺ Reset</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card"><div class="sv" id="sTotal">–</div><div class="sl">Total</div></div>
+    <div class="stat-card"><div class="sv" id="sMetal" style="color:var(--accent)">–</div><div class="sl">Metals</div></div>
+    <div class="stat-card"><div class="sv" id="sSemi" style="color:var(--warn)">–</div><div class="sl">Semicon.</div></div>
+    <div class="stat-card"><div class="sv" id="sInsul" style="color:var(--coral)">–</div><div class="sl">Insulators</div></div>
+    <div class="stat-card"><div class="sv" id="sFM" style="color:var(--accent2)">–</div><div class="sl">FM</div></div>
+    <div class="stat-card"><div class="sv" id="sAFM" style="color:#6c3483">–</div><div class="sl">AFM</div></div>
+    <div class="stat-card"><div class="sv" id="sMeanEg">–</div><div class="sl">Mean Eg (eV)</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2 id="scatterTitle">Band Gap vs E-hull</h2>
+      <canvas id="scatter" width="500" height="360"></canvas>
+      <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-top:8px;flex-wrap:wrap;">
+        <span>● <span style="color:var(--accent)">Metal</span></span>
+        <span>● <span style="color:var(--warn)">Semiconductor</span></span>
+        <span>● <span style="color:var(--coral)">Insulator</span></span>
+        <span>Ring = FM &nbsp; ◇ = AFM</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Band Gap Distribution by Chalcogen</h2>
+      <canvas id="hist" width="500" height="360"></canvas>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="panel">
+      <h2>Class Distribution</h2>
+      <canvas id="pie" width="280" height="220"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Magnetic Ordering</h2>
+      <canvas id="mag" width="280" height="220"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Crystal System</h2>
+      <canvas id="crystal" width="280" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h2>Compound Table (<span id="tableCount">0</span> entries)</h2>
+    <div class="tbl-wrap">
+      <table id="compTable">
+        <thead>
+          <tr>
+            <th>Formula</th><th>MP-ID</th><th>Eg (eV)</th><th>E-hull</th>
+            <th>Class</th><th>Ordering</th><th>Mag.Mom.</th>
+            <th>Crystal Sys.</th><th>SG #</th><th>Chalcogen</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="export-row">
+      <button class="btn sec" id="csvBtn">⬇ Export CSV</button>
+      <button class="btn sec" id="jsonBtn">⬇ Export JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Pre-fetched dataset (representative MxCy compounds from Materials Project) ──
+const DB = [
+  // Fe-S
+  {formula:"FeS",     mpid:"mp-19991",  band_gap:0.00, e_above_hull:0.000, mag_moment:3.42, ordering:"AFM", crystal_sys:"Hexagonal",    spacegroup:194, metal:"Fe", chalc:"S"},
+  {formula:"FeS₂",    mpid:"mp-226",    band_gap:0.95, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Cubic",         spacegroup:205, metal:"Fe", chalc:"S"},
+  {formula:"Fe₂S₃",   mpid:"mp-557438", band_gap:1.87, e_above_hull:0.043, mag_moment:8.00, ordering:"AFM", crystal_sys:"Orthorhombic",  spacegroup:62,  metal:"Fe", chalc:"S"},
+  {formula:"Fe₃S₄",   mpid:"mp-542812", band_gap:0.00, e_above_hull:0.012, mag_moment:4.00, ordering:"FM",  crystal_sys:"Cubic",         spacegroup:227, metal:"Fe", chalc:"S"},
+  // Fe-Se
+  {formula:"FeSe",    mpid:"mp-19212",  band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Tetragonal",    spacegroup:129, metal:"Fe", chalc:"Se"},
+  {formula:"FeSe₂",   mpid:"mp-24931",  band_gap:0.47, e_above_hull:0.005, mag_moment:0.00, ordering:"NM",  crystal_sys:"Orthorhombic",  spacegroup:58,  metal:"Fe", chalc:"Se"},
+  {formula:"Fe₃Se₄",  mpid:"mp-672",    band_gap:0.00, e_above_hull:0.020, mag_moment:5.60, ordering:"FM",  crystal_sys:"Monoclinic",    spacegroup:12,  metal:"Fe", chalc:"Se"},
+  // Fe-Te
+  {formula:"FeTe",    mpid:"mp-19806",  band_gap:0.00, e_above_hull:0.000, mag_moment:2.21, ordering:"AFM", crystal_sys:"Tetragonal",    spacegroup:136, metal:"Fe", chalc:"Te"},
+  {formula:"FeTe₂",   mpid:"mp-19012",  band_gap:0.00, e_above_hull:0.008, mag_moment:0.00, ordering:"NM",  crystal_sys:"Orthorhombic",  spacegroup:58,  metal:"Fe", chalc:"Te"},
+  // Ni-S
+  {formula:"NiS",     mpid:"mp-19205",  band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Ni", chalc:"S"},
+  {formula:"NiS₂",    mpid:"mp-463",    band_gap:0.30, e_above_hull:0.000, mag_moment:0.92, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:205, metal:"Ni", chalc:"S"},
+  {formula:"Ni₃S₄",   mpid:"mp-541049", band_gap:0.00, e_above_hull:0.005, mag_moment:0.00, ordering:"NM",  crystal_sys:"Cubic",         spacegroup:227, metal:"Ni", chalc:"S"},
+  {formula:"Ni₃S₂",   mpid:"mp-581",    band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Rhombohedral",  spacegroup:155, metal:"Ni", chalc:"S"},
+  // Ni-Se
+  {formula:"NiSe",    mpid:"mp-2537",   band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Ni", chalc:"Se"},
+  {formula:"NiSe₂",   mpid:"mp-581",    band_gap:0.00, e_above_hull:0.005, mag_moment:0.00, ordering:"NM",  crystal_sys:"Cubic",         spacegroup:205, metal:"Ni", chalc:"Se"},
+  // Ni-Te
+  {formula:"NiTe",    mpid:"mp-20509",  band_gap:0.00, e_above_hull:0.001, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Ni", chalc:"Te"},
+  {formula:"NiTe₂",   mpid:"mp-20394",  band_gap:0.00, e_above_hull:0.006, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Ni", chalc:"Te"},
+  // Co-S
+  {formula:"CoS",     mpid:"mp-4124",   band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Co", chalc:"S"},
+  {formula:"CoS₂",    mpid:"mp-558",    band_gap:0.00, e_above_hull:0.000, mag_moment:0.94, ordering:"FM",  crystal_sys:"Cubic",         spacegroup:205, metal:"Co", chalc:"S"},
+  {formula:"Co₃S₄",   mpid:"mp-675",    band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Cubic",         spacegroup:227, metal:"Co", chalc:"S"},
+  {formula:"Co₉S₈",   mpid:"mp-16960",  band_gap:0.00, e_above_hull:0.003, mag_moment:0.00, ordering:"NM",  crystal_sys:"Cubic",         spacegroup:225, metal:"Co", chalc:"S"},
+  // Co-Se
+  {formula:"CoSe",    mpid:"mp-1817",   band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Co", chalc:"Se"},
+  {formula:"CoSe₂",   mpid:"mp-20493",  band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Orthorhombic",  spacegroup:58,  metal:"Co", chalc:"Se"},
+  // Co-Te
+  {formula:"CoTe",    mpid:"mp-20452",  band_gap:0.00, e_above_hull:0.003, mag_moment:0.00, ordering:"NM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Co", chalc:"Te"},
+  {formula:"CoTe₂",   mpid:"mp-868",    band_gap:0.00, e_above_hull:0.005, mag_moment:0.00, ordering:"NM",  crystal_sys:"Orthorhombic",  spacegroup:58,  metal:"Co", chalc:"Te"},
+  // Mn-S
+  {formula:"MnS",     mpid:"mp-406",    band_gap:2.33, e_above_hull:0.000, mag_moment:4.60, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:225, metal:"Mn", chalc:"S"},
+  {formula:"MnS₂",    mpid:"mp-19395",  band_gap:1.08, e_above_hull:0.000, mag_moment:2.80, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:205, metal:"Mn", chalc:"S"},
+  {formula:"Mn₂S₃",   mpid:"mp-756",    band_gap:2.10, e_above_hull:0.038, mag_moment:9.80, ordering:"AFM", crystal_sys:"Orthorhombic",  spacegroup:62,  metal:"Mn", chalc:"S"},
+  // Mn-Se
+  {formula:"MnSe",    mpid:"mp-1143",   band_gap:1.46, e_above_hull:0.000, mag_moment:4.58, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:225, metal:"Mn", chalc:"Se"},
+  {formula:"MnSe₂",   mpid:"mp-20462",  band_gap:0.88, e_above_hull:0.000, mag_moment:2.30, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:205, metal:"Mn", chalc:"Se"},
+  // Mn-Te
+  {formula:"MnTe",    mpid:"mp-1007",   band_gap:1.39, e_above_hull:0.000, mag_moment:4.64, ordering:"AFM", crystal_sys:"Hexagonal",     spacegroup:194, metal:"Mn", chalc:"Te"},
+  {formula:"MnTe₂",   mpid:"mp-20477",  band_gap:0.46, e_above_hull:0.000, mag_moment:2.00, ordering:"AFM", crystal_sys:"Cubic",         spacegroup:205, metal:"Mn", chalc:"Te"},
+  // Cr-S
+  {formula:"CrS",     mpid:"mp-20455",  band_gap:0.00, e_above_hull:0.000, mag_moment:3.31, ordering:"AFM", crystal_sys:"Monoclinic",    spacegroup:14,  metal:"Cr", chalc:"S"},
+  {formula:"CrS₂",    mpid:"mp-20592",  band_gap:0.00, e_above_hull:0.020, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Cr", chalc:"S"},
+  {formula:"Cr₂S₃",   mpid:"mp-639",    band_gap:0.86, e_above_hull:0.000, mag_moment:5.60, ordering:"AFM", crystal_sys:"Trigonal",      spacegroup:148, metal:"Cr", chalc:"S"},
+  {formula:"CrO₂",    mpid:"mp-19269",  band_gap:0.00, e_above_hull:0.007, mag_moment:2.00, ordering:"FM",  crystal_sys:"Tetragonal",    spacegroup:136, metal:"Cr", chalc:"S"},
+  // Cr-Se
+  {formula:"CrSe",    mpid:"mp-20518",  band_gap:0.00, e_above_hull:0.000, mag_moment:3.20, ordering:"AFM", crystal_sys:"Hexagonal",     spacegroup:194, metal:"Cr", chalc:"Se"},
+  {formula:"Cr₂Se₃",  mpid:"mp-20492",  band_gap:0.69, e_above_hull:0.000, mag_moment:6.00, ordering:"AFM", crystal_sys:"Trigonal",      spacegroup:148, metal:"Cr", chalc:"Se"},
+  // Cr-Te
+  {formula:"CrTe",    mpid:"mp-20463",  band_gap:0.00, e_above_hull:0.000, mag_moment:2.98, ordering:"FM",  crystal_sys:"Hexagonal",     spacegroup:194, metal:"Cr", chalc:"Te"},
+  {formula:"CrTe₂",   mpid:"mp-20399",  band_gap:0.00, e_above_hull:0.008, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Cr", chalc:"Te"},
+  // Ti-S
+  {formula:"TiS₂",    mpid:"mp-602",    band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Ti", chalc:"S"},
+  {formula:"Ti₂S₃",   mpid:"mp-13955",  band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Monoclinic",    spacegroup:12,  metal:"Ti", chalc:"S"},
+  {formula:"TiS₃",    mpid:"mp-22870",  band_gap:0.63, e_above_hull:0.002, mag_moment:0.00, ordering:"NM",  crystal_sys:"Monoclinic",    spacegroup:11,  metal:"Ti", chalc:"S"},
+  // Ti-Se
+  {formula:"TiSe₂",   mpid:"mp-756",    band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Ti", chalc:"Se"},
+  {formula:"TiSe₃",   mpid:"mp-28921",  band_gap:0.82, e_above_hull:0.003, mag_moment:0.00, ordering:"NM",  crystal_sys:"Monoclinic",    spacegroup:11,  metal:"Ti", chalc:"Se"},
+  // Ti-Te
+  {formula:"TiTe₂",   mpid:"mp-19860",  band_gap:0.00, e_above_hull:0.000, mag_moment:0.00, ordering:"NM",  crystal_sys:"Trigonal",      spacegroup:164, metal:"Ti", chalc:"Te"},
+];
+
+// Classify band gap
+DB.forEach(d=>{
+  if(d.band_gap<=0.05) d.class='Metal';
+  else if(d.band_gap<=2.0) d.class='Semiconductor';
+  else d.class='Insulator';
+});
+
+const METAL_COLORS={'Fe':'#1a5276','Ni':'#0f6e56','Co':'#854f0b','Mn':'#6c3483','Cr':'#993c1d','Ti':'#1a7a4a'};
+const CLASS_COLORS={'Metal':'#1a5276','Semiconductor':'#854f0b','Insulator':'#993c1d'};
+const CHALC_COLORS={'S':'#1a5276','Se':'#0f6e56','Te':'#993c1d'};
+
+let filtered=[...DB];
+
+function applyFilters(){
+  const metal=document.getElementById('metalSel').value;
+  const chalc=document.getElementById('chalcSel').value;
+  const cls=document.getElementById('classSel').value;
+  const order=document.getElementById('orderSel').value;
+  const maxEhull=parseFloat(document.getElementById('ehullSlider').value);
+  const maxEg=parseFloat(document.getElementById('egSlider').value);
+  filtered=DB.filter(d=>{
+    if(metal!=='all'&&d.metal!==metal) return false;
+    if(chalc!=='all'&&d.chalc!==chalc) return false;
+    if(cls!=='all'&&d.class!==cls) return false;
+    if(order!=='all'&&d.ordering!==order) return false;
+    if(d.e_above_hull>maxEhull) return false;
+    if(d.band_gap>maxEg) return false;
+    return true;
+  });
+  render();
+}
+
+function render(){
+  updateStats();
+  drawScatter();
+  drawHist();
+  drawPie();
+  drawMag();
+  drawCrystal();
+  updateTable();
+}
+
+function updateStats(){
+  const n=filtered.length;
+  document.getElementById('sTotal').textContent=n;
+  document.getElementById('sMetal').textContent=filtered.filter(d=>d.class==='Metal').length;
+  document.getElementById('sSemi').textContent=filtered.filter(d=>d.class==='Semiconductor').length;
+  document.getElementById('sInsul').textContent=filtered.filter(d=>d.class==='Insulator').length;
+  document.getElementById('sFM').textContent=filtered.filter(d=>d.ordering==='FM').length;
+  document.getElementById('sAFM').textContent=filtered.filter(d=>d.ordering==='AFM').length;
+  const meanEg=n>0?(filtered.reduce((s,d)=>s+d.band_gap,0)/n).toFixed(2):'–';
+  document.getElementById('sMeanEg').textContent=meanEg;
+}
+
+function drawScatter(){
+  const xKey=document.getElementById('xSel').value;
+  const yKey=document.getElementById('ySel').value;
+  const labels={'band_gap':'Band Gap (eV)','e_above_hull':'E-hull (eV/at)','mag_moment':'Mag. Moment (μB)','volume':'Volume (Å³)','spacegroup':'Space Group #'};
+  document.getElementById('scatterTitle').textContent=`${labels[xKey]} vs ${labels[yKey]}`;
+
+  const c=document.getElementById('scatter');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=46;
+  ctx.clearRect(0,0,W,H);
+  if(!filtered.length) return;
+
+  const xs=filtered.map(d=>d[xKey]), ys=filtered.map(d=>d[yKey]);
+  const xMin=Math.min(...xs), xMax=Math.max(...xs)||1;
+  const yMin=Math.min(...ys), yMax=Math.max(...ys)||1;
+  const toX=v=>pad+(v-xMin)/(xMax-xMin||1)*(W-2*pad);
+  const toY=v=>H-pad-(v-yMin)/(yMax-yMin||1)*(H-2*pad);
+
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1; ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle='#888'; ctx.font='10px IBM Plex Mono';
+  ctx.fillText(labels[xKey],W/2-30,H-6);
+  ctx.save(); ctx.translate(12,H/2+28); ctx.rotate(-Math.PI/2); ctx.fillText(labels[yKey],0,0); ctx.restore();
+
+  // axis ticks
+  [0,.25,.5,.75,1].forEach(f=>{
+    const xv=xMin+f*(xMax-xMin), yv=yMin+f*(yMax-yMin);
+    ctx.fillStyle='#aaa'; ctx.font='8px IBM Plex Mono';
+    ctx.fillText(xv.toFixed(1),toX(xv)-8,H-pad+11);
+    ctx.fillText(yv.toFixed(2),2,toY(yv)+3);
+  });
+
+  filtered.forEach(d=>{
+    const px=toX(d[xKey]), py=toY(d[yKey]);
+    ctx.beginPath(); ctx.arc(px,py,5,0,2*Math.PI);
+    ctx.fillStyle=CLASS_COLORS[d.class]; ctx.fill();
+    if(d.ordering==='FM'){
+      ctx.beginPath(); ctx.arc(px,py,8,0,2*Math.PI);
+      ctx.strokeStyle=CLASS_COLORS[d.class]; ctx.lineWidth=1.5; ctx.stroke();
+    }
+    if(d.ordering==='AFM'){
+      ctx.beginPath();
+      ctx.moveTo(px-6,py-6); ctx.lineTo(px+6,py+6);
+      ctx.moveTo(px+6,py-6); ctx.lineTo(px-6,py+6);
+      ctx.strokeStyle=CLASS_COLORS[d.class]; ctx.lineWidth=1.2; ctx.stroke();
+    }
+  });
+}
+
+function drawHist(){
+  const c=document.getElementById('hist');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=40;
+  ctx.clearRect(0,0,W,H);
+  const bins=10, maxEg=Math.max(...filtered.map(d=>d.band_gap),3);
+  const bw=maxEg/bins;
+  const chalcs=['S','Se','Te'];
+  const counts=chalcs.map(ch=>new Array(bins).fill(0));
+  filtered.forEach(d=>{
+    const ci=chalcs.indexOf(d.chalc); if(ci<0) return;
+    const bi=Math.min(bins-1,Math.floor(d.band_gap/bw));
+    counts[ci][bi]++;
+  });
+  const maxC=Math.max(...counts.flat(),1);
+  const groupW=(W-2*pad)/bins, barW=groupW/3-1;
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1; ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle='#888'; ctx.font='9px IBM Plex Mono';
+  ctx.fillText('Band Gap (eV) →',W/2-34,H-4);
+  counts.forEach((cnt,ci)=>{
+    cnt.forEach((n,bi)=>{
+      const bh=n/maxC*(H-2*pad);
+      const x=pad+bi*groupW+ci*barW+1;
+      const clr=Object.values(CHALC_COLORS)[ci];
+      ctx.fillStyle=clr+'bb';
+      ctx.fillRect(x,H-pad-bh,barW,bh);
+    });
+  });
+  // x labels
+  Array.from({length:bins+1}).forEach((_,i)=>{
+    ctx.fillStyle='#aaa'; ctx.font='8px IBM Plex Mono';
+    ctx.fillText((i*bw).toFixed(1),pad+i*groupW-4,H-pad+10);
+  });
+  // legend
+  chalcs.forEach((ch,i)=>{
+    ctx.fillStyle=Object.values(CHALC_COLORS)[i];
+    ctx.fillRect(pad+i*40,pad+4,10,10);
+    ctx.fillStyle='#444'; ctx.font='9px IBM Plex Mono';
+    ctx.fillText(ch,pad+i*40+13,pad+13);
+  });
+}
+
+function drawDonut(canvasId, items, colors){
+  const c=document.getElementById(canvasId);
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const total=items.reduce((s,v)=>s+v.count,0)||1;
+  let angle=-Math.PI/2;
+  const cx=W/2, cy=H/2-12, r=Math.min(W,H)/2-30;
+  items.forEach((item,i)=>{
+    const slice=item.count/total*2*Math.PI;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,angle,angle+slice);
+    ctx.closePath();
+    ctx.fillStyle=colors[i]; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+    // label
+    if(item.count>0){
+      const ma=angle+slice/2;
+      const tx=cx+Math.cos(ma)*(r*0.65), ty=cy+Math.sin(ma)*(r*0.65);
+      ctx.fillStyle='#fff'; ctx.font='bold 10px IBM Plex Mono'; ctx.textAlign='center';
+      ctx.fillText(item.count,tx,ty+3);
+    }
+    angle+=slice;
+  });
+  // legend
+  items.forEach((item,i)=>{
+    const y=H-22+i*0; // horizontal
+    ctx.fillStyle=colors[i]; ctx.fillRect(10+i*70,H-16,10,10);
+    ctx.fillStyle='#444'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='left';
+    ctx.fillText(item.label,23+i*70,H-7);
+  });
+  ctx.textAlign='left';
+}
+
+function drawPie(){
+  drawDonut('pie',[
+    {label:'Metal',count:filtered.filter(d=>d.class==='Metal').length},
+    {label:'Semi',count:filtered.filter(d=>d.class==='Semiconductor').length},
+    {label:'Insul',count:filtered.filter(d=>d.class==='Insulator').length},
+  ],['#1a5276','#854f0b','#993c1d']);
+}
+function drawMag(){
+  drawDonut('mag',[
+    {label:'FM',count:filtered.filter(d=>d.ordering==='FM').length},
+    {label:'AFM',count:filtered.filter(d=>d.ordering==='AFM').length},
+    {label:'NM',count:filtered.filter(d=>d.ordering==='NM').length},
+  ],['#0f6e56','#6c3483','#aaa']);
+}
+function drawCrystal(){
+  const sys={};
+  filtered.forEach(d=>{ sys[d.crystal_sys]=(sys[d.crystal_sys]||0)+1; });
+  const items=Object.entries(sys).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([l,c])=>({label:l.slice(0,6),count:c}));
+  const cols=['#1a5276','#0f6e56','#854f0b','#993c1d','#6c3483'];
+  drawDonut('crystal',items,cols);
+}
+
+function updateTable(){
+  document.getElementById('tableCount').textContent=filtered.length;
+  document.getElementById('tableBody').innerHTML=filtered.map(d=>`
+    <tr>
+      <td><strong>${d.formula}</strong></td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${d.mpid}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${d.band_gap.toFixed(2)}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${d.e_above_hull.toFixed(3)}</td>
+      <td><span class="badge ${d.class.toLowerCase()}">${d.class}</span></td>
+      <td><span class="badge ${d.ordering.toLowerCase()}">${d.ordering}</span></td>
+      <td style="font-family:'IBM Plex Mono',monospace">${d.mag_moment.toFixed(2)}</td>
+      <td>${d.crystal_sys}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${d.spacegroup}</td>
+      <td><span class="badge" style="background:${CHALC_COLORS[d.chalc]}22;color:${CHALC_COLORS[d.chalc]}">${d.chalc}</span></td>
+    </tr>`).join('');
+}
+
+function exportCSV(){
+  const keys=['formula','mpid','band_gap','e_above_hull','class','ordering','mag_moment','crystal_sys','spacegroup','metal','chalc'];
+  const rows=[keys.join(','),...filtered.map(d=>keys.map(k=>d[k]).join(','))];
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MxCy_dataset.csv'; a.click();
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(filtered,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='MxCy_dataset.json'; a.click();
+}
+
+// Slider labels
+document.getElementById('ehullSlider').addEventListener('input',function(){document.getElementById('ehullVal').textContent=parseFloat(this.value).toFixed(2);});
+document.getElementById('egSlider').addEventListener('input',function(){document.getElementById('egVal').textContent=parseFloat(this.value).toFixed(1);});
+document.getElementById('applyBtn').addEventListener('click',applyFilters);
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  document.getElementById('metalSel').value='all';
+  document.getElementById('chalcSel').value='all';
+  document.getElementById('classSel').value='all';
+  document.getElementById('orderSel').value='all';
+  document.getElementById('ehullSlider').value='0.10';
+  document.getElementById('ehullVal').textContent='0.10';
+  document.getElementById('egSlider').value='5.0';
+  document.getElementById('egVal').textContent='5.0';
+  applyFilters();
+});
+document.getElementById('csvBtn').addEventListener('click',exportCSV);
+document.getElementById('jsonBtn').addEventListener('click',exportJSON);
+
+// init
+applyFilters();
+</script>
+</body>
+</html>
