@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 11 — CNN Filter Visualiser</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;
+    --accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;
+    --text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;
+    --tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px;}
+
+  /* Controls */
+  .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px;}
+  .ctrl{display:flex;flex-direction:column;gap:4px;}
+  .ctrl label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  select{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);min-width:130px;}
+  input[type=range]{width:120px;accent-color:var(--accent);}
+  .val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .btn:hover{background:var(--accent2);}
+  .btn.sec{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .btn.sec:hover{background:var(--tag-bg);}
+
+  /* Layout */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+  @media(max-width:800px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;font-weight:600;}
+  canvas{display:block;background:#fff;border:1px solid var(--border);border-radius:6px;}
+  .canvas-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-align:center;margin-top:4px;text-transform:uppercase;letter-spacing:.06em;}
+
+  /* Kernel editor */
+  .kernel-editor{display:grid;gap:4px;margin:10px auto;width:fit-content;}
+  .ke-cell{width:52px;height:52px;border:1px solid var(--border);border-radius:4px;background:#fff;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;text-align:center;color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .ke-cell:hover{background:var(--tag-bg);}
+  .ke-cell.pos{background:#d4e6f1;}
+  .ke-cell.neg{background:#faece7;color:var(--coral);}
+  .ke-cell.zero{background:var(--surface);color:var(--muted);}
+
+  /* Preset buttons */
+  .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .preset-btn{background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;letter-spacing:.04em;}
+  .preset-btn:hover{background:var(--tag-bg);border-color:var(--accent);}
+  .preset-btn.active{background:var(--tag-bg);border-color:var(--accent);font-weight:700;}
+
+  /* Feature map grid */
+  .fmap-grid{display:grid;gap:8px;grid-template-columns:repeat(4,1fr);}
+  .fmap-item{text-align:center;}
+  .fmap-item canvas{width:100%!important;height:auto!important;}
+  .fmap-label{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-top:3px;text-transform:uppercase;}
+
+  /* Classification result */
+  .result-bar{margin:8px 0;}
+  .rb-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between;}
+  .rb-track{background:var(--border);border-radius:4px;height:14px;overflow:hidden;}
+  .rb-fill{height:100%;border-radius:4px;transition:width .4s ease;}
+  .rb-cubic{background:var(--accent);}
+  .rb-hex{background:var(--accent2);}
+  .rb-orth{background:var(--warn);}
+
+  /* Info callout */
+  .info-box{background:var(--tag-bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;font-size:13px;color:var(--text);}
+  .info-box strong{color:var(--accent);}
+
+  /* Step indicator */
+  .step-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.04em;}
+  .step.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .step.done{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+
+  /* Metrics */
+  .metric-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+  .metric{text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;flex:1;min-width:80px;}
+  .metric .mv{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);}
+  .metric .ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+
+  /* Animation button */
+  .anim-badge{display:inline-flex;align-items:center;gap:6px;background:var(--tag-bg);border:1px solid var(--accent);border-radius:20px;padding:4px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);}
+  .dot-anim{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 11 — CNN Filter Visualiser</h1>
+  <p class="sub">Slide a learnable kernel across a synthetic diffraction pattern · explore feature maps · classify crystal systems in real time</p>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="ctrl">
+      <label>Crystal pattern</label>
+      <select id="patternSel">
+        <option value="cubic">Cubic (simple rings)</option>
+        <option value="hexagonal">Hexagonal (ring + spots)</option>
+        <option value="orthorhombic">Orthorhombic (elliptical)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Noise level <span class="val" id="noiseVal">0.10</span></label>
+      <input type="range" id="noiseSlider" min="0" max="0.5" step="0.05" value="0.1">
+    </div>
+    <div class="ctrl">
+      <label>Conv stride <span class="val" id="strideVal">1</span></label>
+      <input type="range" id="strideSlider" min="1" max="4" step="1" value="1">
+    </div>
+    <div class="ctrl">
+      <label>Pooling</label>
+      <select id="poolSel">
+        <option value="none">None</option>
+        <option value="max" selected>2×2 Max</option>
+        <option value="avg">2×2 Average</option>
+        <option value="gap">Global Avg</option>
+      </select>
+    </div>
+    <button class="btn" id="animBtn">▶ Animate Convolution</button>
+    <button class="btn sec" id="classifyBtn">🔍 Classify Pattern</button>
+  </div>
+
+  <!-- Step indicator -->
+  <div class="step-row">
+    <div class="step" id="s1">1 · Input Image</div>
+    <div class="step" id="s2">2 · Convolution</div>
+    <div class="step" id="s3">3 · Activation (ReLU)</div>
+    <div class="step" id="s4">4 · Pooling</div>
+    <div class="step" id="s5">5 · Classification</div>
+  </div>
+
+  <!-- Row 1: Input + Kernel editor -->
+  <div class="grid2" style="margin-bottom:16px;">
+    <div class="panel">
+      <h2>Input Diffraction Pattern (64×64)</h2>
+      <canvas id="inputCanvas" width="256" height="256" style="width:100%;"></canvas>
+      <div class="canvas-label">Simulated 2D powder diffractogram</div>
+      <div class="info-box" style="margin-top:10px;">
+        <strong>Pixel intensity</strong> represents scattered X-ray or electron intensity at each angular position (2θ). Bright rings = Bragg reflections from crystal planes.
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Kernel Editor (3×3) — click cells to cycle values</h2>
+      <div class="preset-row">
+        <button class="preset-btn active" onclick="setPreset('edge_v')">Vertical Edge</button>
+        <button class="preset-btn" onclick="setPreset('edge_h')">Horizontal Edge</button>
+        <button class="preset-btn" onclick="setPreset('laplace')">Laplacian</button>
+        <button class="preset-btn" onclick="setPreset('sharpen')">Sharpen</button>
+        <button class="preset-btn" onclick="setPreset('blur')">Gaussian Blur</button>
+        <button class="preset-btn" onclick="setPreset('ring')">Ring Detect</button>
+      </div>
+      <div class="kernel-editor" id="kernelEditor" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div class="info-box" style="margin-top:10px;">
+        <strong>Click</strong> any cell to cycle: −1 → 0 → +1. The same 9 weights are slid across the entire image — <em>weight sharing</em> gives CNNs their efficiency.
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+        <div class="metric"><div class="mv" id="kernelSum">0.0</div><div class="ml">Kernel Sum</div></div>
+        <div class="metric"><div class="mv" id="kernelNorm">1.0</div><div class="ml">L2 Norm</div></div>
+        <div class="metric"><div class="mv" id="outputPx">–</div><div class="ml">Center Pixel</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Feature maps -->
+  <div class="grid2" style="margin-bottom:16px;">
+    <div class="panel">
+      <h2>Feature Map — After Convolution</h2>
+      <canvas id="convCanvas" width="256" height="256" style="width:100%;"></canvas>
+      <div class="canvas-label" id="convLabel">Raw convolution output</div>
+      <div id="animStatus" style="margin-top:8px;display:none;">
+        <span class="anim-badge"><span class="dot-anim"></span><span id="animText">Sliding kernel...</span></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>After ReLU + Pooling</h2>
+      <canvas id="poolCanvas" width="256" height="256" style="width:100%;"></canvas>
+      <div class="canvas-label" id="poolLabel">ReLU → Max Pool output</div>
+      <div class="metric-row" style="margin-top:10px;">
+        <div class="metric"><div class="mv" id="fmSize">–</div><div class="ml">Feature Map</div></div>
+        <div class="metric"><div class="mv" id="fmActive">–</div><div class="ml">Active %</div></div>
+        <div class="metric"><div class="mv" id="fmMax">–</div><div class="ml">Max Act.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Multi-filter bank + classification -->
+  <div class="grid2" style="margin-bottom:16px;">
+    <div class="panel">
+      <h2>8-Filter Bank — Layer 1 Feature Maps</h2>
+      <div class="fmap-grid" id="fmapGrid"></div>
+      <div class="info-box" style="margin-top:10px;">
+        A real CNN uses 32–128 filters per layer. Each learns a different pattern detector. Hover over a feature map to see its kernel below.
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Classification Result (3-class Softmax)</h2>
+      <div id="classResults">
+        <div class="info-box">Click <strong>🔍 Classify Pattern</strong> to run a simulated CNN classifier on the current diffraction image.</div>
+      </div>
+      <div id="classDetail" style="display:none;">
+        <div class="result-bar">
+          <div class="rb-label"><span>Cubic</span><span id="pCubic">–</span></div>
+          <div class="rb-track"><div class="rb-fill rb-cubic" id="bCubic" style="width:0%"></div></div>
+        </div>
+        <div class="result-bar">
+          <div class="rb-label"><span>Hexagonal</span><span id="pHex">–</span></div>
+          <div class="rb-track"><div class="rb-fill rb-hex" id="bHex" style="width:0%"></div></div>
+        </div>
+        <div class="result-bar">
+          <div class="rb-label"><span>Orthorhombic</span><span id="pOrth">–</span></div>
+          <div class="rb-track"><div class="rb-fill rb-orth" id="bOrth" style="width:0%"></div></div>
+        </div>
+        <div style="margin-top:14px;" id="classVerdict"></div>
+        <div class="info-box" style="margin-top:10px;">
+          <strong>How it works:</strong> The final dense layer computes a weighted sum of the 128 global average pooling features and applies softmax. Higher noise → lower confidence in all classes.
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <h2>Convolution Animation</h2>
+        <canvas id="animCanvas" width="256" height="256" style="width:100%;"></canvas>
+        <div class="canvas-label">Kernel position highlighted on input</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Architecture summary -->
+  <div class="panel">
+    <h2>Architecture Overview — 3-Block CNN</h2>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;padding:10px 0;">
+      <div style="text-align:center;background:#d4e6f1;border:1px solid var(--accent);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;">Input</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">64×64×1</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#e1f5ee;border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;">Conv1</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">64×64×32</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#faeeda;border:1px solid var(--warn);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--warn);text-transform:uppercase;">Pool1</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">32×32×32</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#e1f5ee;border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;">Conv2</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">32×32×64</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#faeeda;border:1px solid var(--warn);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--warn);text-transform:uppercase;">Pool2</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">16×16×64</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#e1f5ee;border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;">Conv3</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">16×16×128</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#f0e8f5;border:1px solid var(--purple);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--purple);text-transform:uppercase;">GAP</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">128</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#f0e8f5;border:1px solid var(--purple);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--purple);text-transform:uppercase;">Dense</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">64</div>
+      </div>
+      <div style="color:var(--muted);">→</div>
+      <div style="text-align:center;background:#d4e6f1;border:1px solid var(--accent);border-radius:8px;padding:10px 14px;min-width:80px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;">Output</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">3 classes</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">
+      Total parameters: ~101,123 · Fully connected equivalent: >4M
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONSTANTS & STATE ───────────────────────────────────────────────────────
+const SIZE = 64;   // image size
+const DISP = 256;  // display size
+
+let inputImg  = new Float32Array(SIZE * SIZE);
+let kernel    = [[-1,0,1],[-1,0,1],[-1,0,1]]; // vertical edge
+let convOut   = new Float32Array(SIZE * SIZE);
+let reluOut   = new Float32Array(SIZE * SIZE);
+let poolOut   = new Float32Array(SIZE * SIZE);
+let animFrame = null;
+let animPos   = 0;
+let isAnimating = false;
+
+// 8 preset filter banks for multi-filter display
+const FILTER_BANK = [
+  [[-1,0,1],[-1,0,1],[-1,0,1]],       // vertical edge
+  [[-1,-1,-1],[0,0,0],[1,1,1]],         // horizontal edge
+  [[-1,-1,-1],[-1,8,-1],[-1,-1,-1]],   // laplacian
+  [[0,-1,0],[-1,5,-1],[0,-1,0]],        // sharpen
+  [[1,1,1],[1,-8,1],[1,1,1]],           // ring outer
+  [[-1,2,-1],[2,-4,2],[-1,2,-1]],       // ring inner
+  [[1,0,-1],[2,0,-2],[1,0,-1]],         // Sobel x
+  [[1,2,1],[0,0,0],[-1,-2,-1]],         // Sobel y
+];
+const FILTER_NAMES = ['V-Edge','H-Edge','Laplace','Sharpen','Ring-O','Ring-I','Sobel-X','Sobel-Y'];
+
+// ─── PATTERN GENERATORS ──────────────────────────────────────────────────────
+function generatePattern(type, noise) {
+  const img = new Float32Array(SIZE * SIZE);
+  const cx = SIZE/2, cy = SIZE/2;
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      let val = 0;
+      const dx = x - cx, dy = y - cy;
+      if (type === 'cubic') {
+        // Concentric circular rings (FCC/BCC d-spacings)
+        const r = Math.sqrt(dx*dx + dy*dy);
+        const rings = [8, 12, 16, 20, 25, 30];
+        for (const rr of rings) {
+          val += Math.exp(-0.5 * ((r - rr)/1.2)**2) * 0.9;
+        }
+      } else if (type === 'hexagonal') {
+        // Rings + 6 bright spots (hexagonal symmetry)
+        const r = Math.sqrt(dx*dx + dy*dy);
+        const rings = [10, 20, 28];
+        for (const rr of rings) {
+          val += Math.exp(-0.5 * ((r - rr)/1.4)**2) * 0.6;
+        }
+        // 6-fold spots
+        const angle = Math.atan2(dy, dx);
+        for (let k = 0; k < 6; k++) {
+          const theta = k * Math.PI / 3;
+          const spotR = 14;
+          const sx = cx + spotR * Math.cos(theta);
+          const sy = cy + spotR * Math.sin(theta);
+          val += Math.exp(-((x-sx)**2 + (y-sy)**2) / 3) * 1.0;
+        }
+      } else { // orthorhombic
+        // Elliptical rings (different a,b lattice parameters)
+        const a = 1.0, b = 1.6;
+        const re = Math.sqrt((dx/a)**2 + (dy/b)**2);
+        const rings = [8, 14, 20, 26];
+        for (const rr of rings) {
+          val += Math.exp(-0.5 * ((re - rr)/1.3)**2) * 0.85;
+        }
+      }
+      // Add noise
+      val += (Math.random() - 0.5) * noise * 2;
+      img[y * SIZE + x] = Math.max(0, Math.min(1, val));
+    }
+  }
+  return img;
+}
+
+// ─── CONVOLUTION ─────────────────────────────────────────────────────────────
+function convolve(img, K, stride) {
+  const out = new Float32Array(SIZE * SIZE);
+  const ks = 1; // kernel half-size (for 3×3)
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      if (y % stride !== 0 || x % stride !== 0) continue;
+      let sum = 0;
+      for (let m = -ks; m <= ks; m++) {
+        for (let n = -ks; n <= ks; n++) {
+          const iy = y + m, ix = x + n;
+          if (iy >= 0 && iy < SIZE && ix >= 0 && ix < SIZE) {
+            sum += img[iy * SIZE + ix] * K[m+ks][n+ks];
+          }
+        }
+      }
+      out[y * SIZE + x] = sum;
+    }
+  }
+  return out;
+}
+
+function relu(arr) {
+  return arr.map(v => Math.max(0, v));
+}
+
+function maxPool2x2(arr, sz) {
+  const out = new Float32Array(sz * sz);
+  const outSz = sz / 2;
+  for (let y = 0; y < outSz; y++) {
+    for (let x = 0; x < outSz; x++) {
+      let m = -Infinity;
+      for (let dy = 0; dy < 2; dy++)
+        for (let dx = 0; dx < 2; dx++)
+          m = Math.max(m, arr[(y*2+dy)*sz + (x*2+dx)]);
+      out[y * outSz + x] = m;
+    }
+  }
+  return { data: out, sz: outSz };
+}
+
+function avgPool2x2(arr, sz) {
+  const outSz = sz / 2;
+  const out = new Float32Array(outSz * outSz);
+  for (let y = 0; y < outSz; y++)
+    for (let x = 0; x < outSz; x++) {
+      let s = 0;
+      for (let dy = 0; dy < 2; dy++)
+        for (let dx = 0; dx < 2; dx++)
+          s += arr[(y*2+dy)*sz + (x*2+dx)];
+      out[y*outSz+x] = s / 4;
+    }
+  return { data: out, sz: outSz };
+}
+
+// ─── CANVAS RENDERING ────────────────────────────────────────────────────────
+function renderGray(canvas, arr, sz, highlight) {
+  const ctx = canvas.getContext('2d');
+  const scale = canvas.width / sz;
+  let mn = Infinity, mx = -Infinity;
+  for (const v of arr) { if (v < mn) mn = v; if (v > mx) mx = v; }
+  const range = mx - mn || 1;
+  const id = ctx.createImageData(canvas.width, canvas.height);
+  for (let y = 0; y < sz; y++) {
+    for (let x = 0; x < sz; x++) {
+      const norm = (arr[y*sz+x] - mn) / range;
+      const g = Math.round(norm * 255);
+      for (let py = 0; py < scale; py++) {
+        for (let px = 0; px < scale; px++) {
+          const idx = ((y * scale + py) * canvas.width + (x * scale + px)) * 4;
+          id.data[idx]   = g;
+          id.data[idx+1] = g;
+          id.data[idx+2] = g;
+          id.data[idx+3] = 255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+  // Draw highlight box
+  if (highlight !== undefined) {
+    const hy = Math.floor(highlight / SIZE) * scale;
+    const hx = (highlight % SIZE) * scale;
+    ctx.strokeStyle = '#d29922';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hx - scale, hy - scale, scale * 3, scale * 3);
+  }
+}
+
+function renderFalseColor(canvas, arr, sz) {
+  const ctx = canvas.getContext('2d');
+  const scale = canvas.width / sz;
+  let mn = Infinity, mx = -Infinity;
+  for (const v of arr) { if (v<mn) mn=v; if (v>mx) mx=v; }
+  const range = mx - mn || 1;
+  const id = ctx.createImageData(canvas.width, canvas.height);
+  for (let y = 0; y < sz; y++) {
+    for (let x = 0; x < sz; x++) {
+      const t = (arr[y*sz+x] - mn) / range;
+      // Cyan → blue colourmap
+      const r = Math.round(t < 0.5 ? 0 : (t - 0.5) * 2 * 58);
+      const g = Math.round(t * 164);
+      const b = Math.round(t < 0.5 ? 155 + t * 100 : 255);
+      for (let py = 0; py < scale; py++) {
+        for (let px = 0; px < scale; px++) {
+          const idx = ((y*scale+py)*canvas.width + (x*scale+px)) * 4;
+          id.data[idx]=r; id.data[idx+1]=g; id.data[idx+2]=b; id.data[idx+3]=255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+// ─── KERNEL EDITOR ───────────────────────────────────────────────────────────
+function buildKernelEditor() {
+  const ed = document.getElementById('kernelEditor');
+  ed.innerHTML = '';
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'ke-cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      updateCell(cell, kernel[r][c]);
+      cell.onclick = () => {
+        const vals = [-1, 0, 1];
+        const cur = kernel[r][c];
+        const next = vals[(vals.indexOf(cur) + 1) % vals.length];
+        kernel[r][c] = next;
+        updateCell(cell, next);
+        runPipeline();
+      };
+      ed.appendChild(cell);
+    }
+  }
+  updateKernelStats();
+}
+
+function updateCell(cell, val) {
+  cell.textContent = val > 0 ? '+' + val : val;
+  cell.className = 'ke-cell ' + (val > 0 ? 'pos' : val < 0 ? 'neg' : 'zero');
+}
+
+function updateKernelStats() {
+  let sum = 0, norm2 = 0;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    sum += kernel[r][c]; norm2 += kernel[r][c]**2;
+  }
+  document.getElementById('kernelSum').textContent = sum.toFixed(1);
+  document.getElementById('kernelNorm').textContent = Math.sqrt(norm2).toFixed(2);
+}
+
+const PRESETS = {
+  edge_v:  [[-1,0,1],[-1,0,1],[-1,0,1]],
+  edge_h:  [[-1,-1,-1],[0,0,0],[1,1,1]],
+  laplace: [[-1,-1,-1],[-1,8,-1],[-1,-1,-1]],
+  sharpen: [[0,-1,0],[-1,5,-1],[0,-1,0]],
+  blur:    [[1,1,1],[1,1,1],[1,1,1]],   // normalized in mind
+  ring:    [[1,1,1],[1,-8,1],[1,1,1]],
+};
+
+function setPreset(name) {
+  kernel = PRESETS[name].map(r => [...r]);
+  buildKernelEditor();
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  runPipeline();
+}
+
+// ─── MAIN PIPELINE ───────────────────────────────────────────────────────────
+function runPipeline() {
+  const noise  = parseFloat(document.getElementById('noiseSlider').value);
+  const stride = parseInt(document.getElementById('strideSlider').value);
+  const pool   = document.getElementById('poolSel').value;
+
+  // Generate pattern
+  const pattern = document.getElementById('patternSel').value;
+  inputImg = generatePattern(pattern, noise);
+
+  // Convolve
+  convOut = convolve(inputImg, kernel, stride);
+
+  // ReLU
+  const relu_out = relu(convOut);
+
+  // Pool
+  let poolData, poolSz;
+  if (pool === 'max') {
+    const res = maxPool2x2(relu_out, SIZE);
+    poolData = res.data; poolSz = res.sz;
+  } else if (pool === 'avg') {
+    const res = avgPool2x2(relu_out, SIZE);
+    poolData = res.data; poolSz = res.sz;
+  } else if (pool === 'gap') {
+    let s = 0; for (const v of relu_out) s += v;
+    const avg = s / relu_out.length;
+    poolData = new Float32Array(1).fill(avg);
+    poolSz = 1;
+  } else {
+    poolData = relu_out; poolSz = SIZE;
+  }
+
+  // Render
+  renderGray(document.getElementById('inputCanvas'), inputImg, SIZE);
+  renderFalseColor(document.getElementById('convCanvas'), convOut, SIZE);
+
+  if (pool === 'gap') {
+    const ctx = document.getElementById('poolCanvas').getContext('2d');
+    ctx.clearRect(0, 0, 256, 256);
+    ctx.fillStyle = '#f7f6f2';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.font = '700 48px IBM Plex Mono';
+    ctx.fillStyle = '#1a5276';
+    ctx.textAlign = 'center';
+    ctx.fillText(poolData[0].toFixed(3), 128, 140);
+    ctx.font = '13px IBM Plex Sans';
+    ctx.fillStyle = '#444';
+    ctx.fillText('global average activation', 128, 170);
+    document.getElementById('poolLabel').textContent = 'Global Average Pool → scalar';
+  } else {
+    renderFalseColor(document.getElementById('poolCanvas'), poolData, poolSz);
+    document.getElementById('poolLabel').textContent = `${pool === 'none' ? 'ReLU only' : pool === 'max' ? 'ReLU → Max Pool' : 'ReLU → Avg Pool'} · ${poolSz}×${poolSz}`;
+  }
+
+  document.getElementById('convLabel').textContent = `Convolution output · ${SIZE}×${SIZE} (stride ${stride})`;
+
+  // Stats
+  let active = 0, maxAct = -Infinity;
+  for (const v of relu_out) { if (v > 0) active++; if (v > maxAct) maxAct = v; }
+  document.getElementById('fmSize').textContent = pool !== 'gap' ? `${poolSz}×${poolSz}` : '1';
+  document.getElementById('fmActive').textContent = (active / relu_out.length * 100).toFixed(0) + '%';
+  document.getElementById('fmMax').textContent = maxAct.toFixed(2);
+
+  // Center pixel
+  const ctr = Math.floor(SIZE/2) * SIZE + Math.floor(SIZE/2);
+  document.getElementById('outputPx').textContent = convOut[ctr].toFixed(2);
+  updateKernelStats();
+
+  // Multi-filter bank
+  renderFilterBank();
+
+  // Re-render anim canvas
+  renderGray(document.getElementById('animCanvas'), inputImg, SIZE);
+
+  // Update steps
+  setStep(pool === 'none' ? 3 : 4);
+}
+
+function renderFilterBank() {
+  const grid = document.getElementById('fmapGrid');
+  grid.innerHTML = '';
+  for (let f = 0; f < 8; f++) {
+    const out = convolve(inputImg, FILTER_BANK[f], 1);
+    const relu_out = relu(out);
+    const div = document.createElement('div');
+    div.className = 'fmap-item';
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    renderFalseColor(c, relu_out, SIZE);
+    div.appendChild(c);
+    const lbl = document.createElement('div');
+    lbl.className = 'fmap-label';
+    lbl.textContent = FILTER_NAMES[f];
+    div.appendChild(lbl);
+    grid.appendChild(div);
+  }
+}
+
+// ─── ANIMATION ───────────────────────────────────────────────────────────────
+function startAnimation() {
+  if (isAnimating) { stopAnimation(); return; }
+  isAnimating = true;
+  document.getElementById('animBtn').textContent = '⏹ Stop';
+  document.getElementById('animStatus').style.display = 'block';
+  animPos = 0;
+  setStep(2);
+  runAnimFrame();
+}
+
+function stopAnimation() {
+  isAnimating = false;
+  document.getElementById('animBtn').textContent = '▶ Animate Convolution';
+  document.getElementById('animStatus').style.display = 'none';
+  if (animFrame) cancelAnimationFrame(animFrame);
+  renderGray(document.getElementById('animCanvas'), inputImg, SIZE);
+  setStep(4);
+}
+
+function runAnimFrame() {
+  if (!isAnimating) return;
+  const stride = parseInt(document.getElementById('strideSlider').value);
+
+  // Step through positions (skip by stride)
+  animPos += stride;
+  if (animPos >= SIZE * SIZE) { stopAnimation(); return; }
+
+  const ay = Math.floor(animPos / SIZE);
+  const ax = animPos % SIZE;
+
+  // Show partial conv output
+  const partialConv = new Float32Array(SIZE * SIZE).fill(0);
+  for (let i = 0; i <= animPos; i++) {
+    if (i % stride !== 0) continue;
+    const y = Math.floor(i / SIZE), x = i % SIZE;
+    let s = 0;
+    for (let m = -1; m <= 1; m++) for (let n = -1; n <= 1; n++) {
+      const iy = y+m, ix = x+n;
+      if (iy>=0&&iy<SIZE&&ix>=0&&ix<SIZE)
+        s += inputImg[iy*SIZE+ix] * kernel[m+1][n+1];
+    }
+    partialConv[i] = s;
+  }
+  renderFalseColor(document.getElementById('convCanvas'), partialConv, SIZE);
+
+  // Highlight position on input
+  renderGray(document.getElementById('animCanvas'), inputImg, SIZE, animPos);
+  renderGray(document.getElementById('inputCanvas'), inputImg, SIZE, animPos);
+
+  document.getElementById('animText').textContent =
+    `Position (${ax}, ${ay}) · ${Math.round(animPos / (SIZE*SIZE) * 100)}% done`;
+
+  animFrame = requestAnimationFrame(() => setTimeout(runAnimFrame, 16));
+}
+
+// ─── CLASSIFICATION ──────────────────────────────────────────────────────────
+function classify() {
+  const pattern = document.getElementById('patternSel').value;
+  const noise   = parseFloat(document.getElementById('noiseSlider').value);
+
+  // Simulated softmax scores — deterministic based on pattern + noise
+  const base = {
+    cubic:       { cubic: 0.88, hex: 0.07, orth: 0.05 },
+    hexagonal:   { cubic: 0.05, hex: 0.91, orth: 0.04 },
+    orthorhombic:{ cubic: 0.06, hex: 0.04, orth: 0.90 },
+  }[pattern];
+
+  // Noise reduces confidence
+  const spread = noise * 1.2;
+  let sc = base.cubic  + (Math.random()-0.5)*spread;
+  let sh = base.hex    + (Math.random()-0.5)*spread;
+  let so = base.orth   + (Math.random()-0.5)*spread;
+
+  // Softmax
+  const maxS = Math.max(sc, sh, so);
+  sc = Math.exp(sc - maxS); sh = Math.exp(sh - maxS); so = Math.exp(so - maxS);
+  const tot = sc + sh + so;
+  sc /= tot; sh /= tot; so /= tot;
+
+  document.getElementById('classResults').style.display = 'none';
+  document.getElementById('classDetail').style.display  = 'block';
+
+  document.getElementById('pCubic').textContent = (sc*100).toFixed(1) + '%';
+  document.getElementById('pHex').textContent   = (sh*100).toFixed(1) + '%';
+  document.getElementById('pOrth').textContent  = (so*100).toFixed(1) + '%';
+
+  setTimeout(() => {
+    document.getElementById('bCubic').style.width = (sc*100) + '%';
+    document.getElementById('bHex').style.width   = (sh*100) + '%';
+    document.getElementById('bOrth').style.width  = (so*100) + '%';
+  }, 50);
+
+  const names = ['Cubic','Hexagonal','Orthorhombic'];
+  const scores = [sc, sh, so];
+  const best = scores.indexOf(Math.max(...scores));
+  const correct = (pattern === 'cubic' && best === 0) ||
+                  (pattern === 'hexagonal' && best === 1) ||
+                  (pattern === 'orthorhombic' && best === 2);
+
+  const verdict = document.getElementById('classVerdict');
+  verdict.innerHTML = `
+    <div style="padding:12px 16px;border-radius:8px;background:${correct?'#e1f5ee':'#faece7'};border:1px solid ${correct?'#0f6e56':'#993c1d'};">
+      <strong style="color:${correct?'#0f6e56':'#993c1d'};">${correct ? '✓ Correct' : '✗ Misclassified'}</strong>
+      &nbsp;→ Predicted: <strong>${names[best]}</strong> (${(scores[best]*100).toFixed(1)}% confidence)
+    </div>`;
+
+  setStep(5);
+}
+
+// ─── STEP INDICATOR ──────────────────────────────────────────────────────────
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('s'+i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+// ─── CONTROLS WIRING ─────────────────────────────────────────────────────────
+document.getElementById('noiseSlider').oninput = function() {
+  document.getElementById('noiseVal').textContent = parseFloat(this.value).toFixed(2);
+  runPipeline();
+};
+document.getElementById('strideSlider').oninput = function() {
+  document.getElementById('strideVal').textContent = this.value;
+  runPipeline();
+};
+document.getElementById('patternSel').onchange = () => {
+  document.getElementById('classDetail').style.display = 'none';
+  document.getElementById('classResults').style.display = 'block';
+  runPipeline();
+};
+document.getElementById('poolSel').onchange  = runPipeline;
+document.getElementById('animBtn').onclick   = startAnimation;
+document.getElementById('classifyBtn').onclick = () => { runPipeline(); classify(); };
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+buildKernelEditor();
+runPipeline();
+setStep(1);
+</script>
+</body>
+</html>
