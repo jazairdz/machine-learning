@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 10 — Backpropagation Training Visualiser</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px;}
+
+  .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px;}
+  .ctrl{display:flex;flex-direction:column;gap:4px;}
+  .ctrl label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  select,input[type=number]{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);width:100px;}
+  input[type=number]{width:80px;}
+  input[type=range]{width:120px;accent-color:var(--accent);}
+  .val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .btn:hover{background:var(--accent2);}
+  .btn.sec{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .btn.sec:hover{background:var(--tag-bg);}
+  .btn.stop{background:var(--coral);color:#fff;border:none;}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;}
+  @media(max-width:860px){.grid,.grid3{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;font-weight:600;}
+  canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--border);border-radius:8px;}
+
+  .metric{text-align:center;padding:10px;}
+  .metric .mv{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--accent);}
+  .metric .ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+  .grad-bar-wrap{margin:6px 0;}
+  .gb-row{display:flex;align-items:center;gap:8px;margin:4px 0;}
+  .gb-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);width:52px;flex-shrink:0;}
+  .gb-bg{flex:1;background:var(--border);border-radius:3px;height:10px;}
+  .gb-bar{height:10px;border-radius:3px;transition:width .2s;}
+  .gb-val{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent);width:44px;text-align:right;}
+
+  .cm-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+  .cm-table th,.cm-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;}
+  .cm-table th{background:var(--code-bg);font-family:'IBM Plex Mono',monospace;font-size:10px;}
+  .cm-hit{background:#e1f5ee;font-weight:700;color:var(--accent2);}
+  .cm-miss{background:#faece7;color:var(--coral);}
+
+  .epoch-badge{display:inline-block;background:var(--tag-bg);border:1px solid var(--border);border-radius:20px;padding:3px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);margin-right:10px;}
+
+  .status-bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 10 — Backpropagation Training Visualiser</h1>
+  <p class="sub">3→4→3 network · 12 compounds · watch gradients, loss, and accuracy evolve in real time</p>
+
+  <div class="controls">
+    <div class="ctrl">
+      <label>Optimiser</label>
+      <select id="optSel">
+        <option value="sgd">SGD</option>
+        <option value="momentum">SGD + Momentum</option>
+        <option value="adam" selected>Adam</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Learning rate <span class="val" id="lrVal">0.010</span></label>
+      <input type="range" id="lrSlider" min="-4" max="-1" step="0.25" value="-2">
+    </div>
+    <div class="ctrl">
+      <label>Epochs</label>
+      <input type="number" id="nEpochs" value="500" min="50" max="3000" step="50">
+    </div>
+    <div class="ctrl">
+      <label>Hidden neurons</label>
+      <select id="hiddenSel">
+        <option value="2">2</option>
+        <option value="4" selected>4</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+      </select>
+    </div>
+    <button class="btn" id="trainBtn">▶ Train</button>
+    <button class="btn stop" id="stopBtn" style="display:none">⏹ Stop</button>
+    <button class="btn sec" id="resetBtn">↺ Reset</button>
+  </div>
+
+  <div class="status-bar">
+    <span id="epochBadge" class="epoch-badge">Epoch 0</span>
+    <span id="statusLoss" style="color:var(--muted)">Loss: –</span>
+    <span id="statusAcc"  style="color:var(--muted)">Accuracy: –</span>
+    <span id="statusLR"   style="color:var(--muted)">LR: –</span>
+  </div>
+
+  <div class="grid">
+    <!-- Loss curve -->
+    <div class="panel">
+      <h2>Loss Curve</h2>
+      <canvas id="lossCanvas" width="480" height="280"></canvas>
+    </div>
+    <!-- Accuracy curve -->
+    <div class="panel">
+      <h2>Accuracy Curve</h2>
+      <canvas id="accCanvas" width="480" height="280"></canvas>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <!-- Gradient norms -->
+    <div class="panel">
+      <h2>Gradient Norms per Layer</h2>
+      <div id="gradBars"></div>
+      <div style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">
+        <div>Dead ReLU neurons: <span id="deadCount" style="color:var(--coral);font-weight:700">–</span></div>
+        <div style="margin-top:4px">Active neurons: <span id="activeCount" style="color:var(--accent2);font-weight:700">–</span></div>
+      </div>
+    </div>
+
+    <!-- Weight evolution -->
+    <div class="panel">
+      <h2>Weight Distribution (W¹)</h2>
+      <canvas id="weightCanvas" width="300" height="220"></canvas>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace">
+        Mean: <span id="wMean">–</span> &nbsp; Std: <span id="wStd">–</span>
+      </div>
+    </div>
+
+    <!-- Confusion matrix + metrics -->
+    <div class="panel">
+      <h2>Confusion Matrix</h2>
+      <table class="cm-table">
+        <thead><tr><th></th><th>Metal</th><th>Semi</th><th>Insul</th></tr></thead>
+        <tbody>
+          <tr><th>Metal</th><td id="c00">–</td><td id="c01">–</td><td id="c02">–</td></tr>
+          <tr><th>Semi</th> <td id="c10">–</td><td id="c11">–</td><td id="c12">–</td></tr>
+          <tr><th>Insul</th><td id="c20">–</td><td id="c21">–</td><td id="c22">–</td></tr>
+        </tbody>
+      </table>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+        <div class="metric"><div class="mv" id="mFinal">–</div><div class="ml">Final Acc</div></div>
+        <div class="metric"><div class="mv" id="mLoss">–</div><div class="ml">Final Loss</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────
+const RAW=[[0.43,6,0.00],[0.43,6,0.95],[1.40,8,3.10],[0.43,8,0.00],[0.61,5,1.40],[0.93,5,2.30],[1.54,2,0.00],[1.54,3,2.80],[1.40,7,2.40],[0.43,7,0.00],[1.54,2,0.00],[1.54,0,3.00]];
+const LABELS=[0,1,2,0,1,2,0,2,2,0,0,2];
+const N=12;
+function mean(a){return a.reduce((s,v)=>s+v,0)/a.length;}
+function std(a){const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length)||1;}
+const mu=[0,1,2].map(f=>mean(RAW.map(r=>r[f])));
+const sg=[0,1,2].map(f=>std(RAW.map(r=>r[f])));
+const X=RAW.map(r=>r.map((v,i)=>(v-mu[i])/sg[i]));
+
+// ── Network state ─────────────────────────────────────────────
+let H=4, W1,b1,W2,b2;
+// Adam state
+let mW1,vW1,mb1,vb1,mW2,vW2,mb2,vb2,adamT;
+// Momentum state
+let velW1,velb1,velW2,velb2;
+
+function heInit(rows,cols){return Array.from({length:rows},()=>Array.from({length:cols},()=>(Math.random()*2-1)*Math.sqrt(2/cols)));}
+function zeros(n){return new Array(n).fill(0);}
+function zeros2(r,c){return Array.from({length:r},()=>zeros(c));}
+
+function initNet(){
+  H=parseInt(document.getElementById('hiddenSel').value);
+  W1=heInit(H,3); b1=zeros(H); W2=heInit(3,H); b2=zeros(3);
+  mW1=zeros2(H,3);vW1=zeros2(H,3);mb1=zeros(H);vb1=zeros(H);
+  mW2=zeros2(3,H);vW2=zeros2(3,H);mb2=zeros(3);vb2=zeros(3);
+  velW1=zeros2(H,3);velb1=zeros(H);velW2=zeros2(3,H);velb2=zeros(3);
+  adamT=0;
+}
+
+// ── Math helpers ──────────────────────────────────────────────
+function dot(a,b){return a.reduce((s,v,i)=>s+v*b[i],0);}
+function relu(v){return Math.max(0,v);}
+function softmax(z){const m=Math.max(...z),e=z.map(v=>Math.exp(v-m)),s=e.reduce((a,b)=>a+b,0);return e.map(v=>v/s);}
+function matVec(M,v){return M.map(row=>dot(row,v));}
+function vecMatT(v,M){// v (H), M (3,H) → result (3): M·v actually
+  return M.map(row=>dot(row,v));}
+
+// ── Forward pass (single sample) ─────────────────────────────
+function forward(x){
+  const z1=W1.map((w,j)=>dot(w,x)+b1[j]);
+  const a1=z1.map(relu);
+  const z2=W2.map((w,j)=>dot(w,a1)+b2[j]);
+  const yhat=softmax(z2);
+  return{z1,a1,z2,yhat};
+}
+
+// ── Backward pass (batch) ─────────────────────────────────────
+function trainStep(lr,optType){
+  // Accumulate gradients over all samples
+  const dW1=zeros2(H,3),db1=zeros(H),dW2=zeros2(3,H),db2=zeros(3);
+  let totalLoss=0;
+  const preds=[];
+
+  X.forEach((x,idx)=>{
+    const{z1,a1,z2,yhat}=forward(x);
+    preds.push(yhat.indexOf(Math.max(...yhat)));
+    totalLoss+=-Math.log(Math.max(yhat[LABELS[idx]],1e-10));
+
+    // δ² = ŷ - y_onehot
+    const d2=yhat.map((v,k)=>v-(k===LABELS[idx]?1:0));
+
+    // ∂L/∂W², ∂L/∂b²
+    d2.forEach((d,j)=>{ W2[j].forEach((_,i)=>{ dW2[j][i]+=d*a1[i]; }); db2[j]+=d; });
+
+    // δ¹ = (W²ᵀ · δ²) ⊙ relu'(z1)
+    const d1=W2[0].map((_,i)=>W2.reduce((s,w,j)=>s+w[i]*d2[j],0)*(z1[i]>0?1:0));
+
+    // ∂L/∂W¹, ∂L/∂b¹
+    d1.forEach((d,j)=>{ x.forEach((xv,i)=>{ dW1[j][i]+=d*xv; }); db1[j]+=d; });
+  });
+
+  // Average gradients
+  const scale=1/N;
+  dW1.forEach(r=>r.forEach((_,i,arr)=>arr[i]*=scale));
+  dW2.forEach(r=>r.forEach((_,i,arr)=>arr[i]*=scale));
+  db1.forEach((_,i,arr)=>arr[i]*=scale);
+  db2.forEach((_,i,arr)=>arr[i]*=scale);
+
+  // ── Parameter update ──────────────────────────────────────
+  if(optType==='adam'){
+    adamT++;
+    const b1_=0.9,b2_=0.999,eps=1e-8;
+    function adamUpdate(w,dw,m,v){
+      m.forEach((mv,i)=>{ m[i]=b1_*mv+(1-b1_)*dw[i]; v[i]=b2_*v[i]+(1-b2_)*dw[i]**2;
+        const mhat=m[i]/(1-Math.pow(b1_,adamT)), vhat=v[i]/(1-Math.pow(b2_,adamT));
+        w[i]-=lr*mhat/(Math.sqrt(vhat)+eps); });
+    }
+    W1.forEach((w,j)=>adamUpdate(w,dW1[j],mW1[j],vW1[j]));
+    adamUpdate(b1,db1,mb1,vb1);
+    W2.forEach((w,j)=>adamUpdate(w,dW2[j],mW2[j],vW2[j]));
+    adamUpdate(b2,db2,mb2,vb2);
+  } else if(optType==='momentum'){
+    const beta=0.9;
+    W1.forEach((w,j)=>w.forEach((_,i)=>{ velW1[j][i]=beta*velW1[j][i]-lr*dW1[j][i]; w[i]+=velW1[j][i]; }));
+    b1.forEach((_,j)=>{ velb1[j]=beta*velb1[j]-lr*db1[j]; b1[j]+=velb1[j]; });
+    W2.forEach((w,j)=>w.forEach((_,i)=>{ velW2[j][i]=beta*velW2[j][i]-lr*dW2[j][i]; w[i]+=velW2[j][i]; }));
+    b2.forEach((_,j)=>{ velb2[j]=beta*velb2[j]-lr*db2[j]; b2[j]+=velb2[j]; });
+  } else {
+    W1.forEach((w,j)=>w.forEach((_,i)=>{ w[i]-=lr*dW1[j][i]; }));
+    b1.forEach((_,j)=>{ b1[j]-=lr*db1[j]; });
+    W2.forEach((w,j)=>w.forEach((_,i)=>{ w[i]-=lr*dW2[j][i]; }));
+    b2.forEach((_,j)=>{ b2[j]-=lr*db2[j]; });
+  }
+
+  const loss=totalLoss/N;
+  const acc=preds.filter((p,i)=>p===LABELS[i]).length/N;
+  const gradNorm1=Math.sqrt(dW1.flat().reduce((s,v)=>s+v**2,0));
+  const gradNorm2=Math.sqrt(dW2.flat().reduce((s,v)=>s+v**2,0));
+  return{loss,acc,preds,gradNorm1,gradNorm2};
+}
+
+// ── Drawing ───────────────────────────────────────────────────
+function drawCurve(canvasId,data,label,color,yMin,yMax){
+  const c=document.getElementById(canvasId);
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=36;
+  ctx.clearRect(0,0,W,H);
+  if(data.length<2) return;
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1;
+  ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  // axis labels
+  ctx.fillStyle='#888'; ctx.font='9px IBM Plex Mono';
+  ctx.fillText('Epoch',W/2-16,H-4);
+  ctx.save(); ctx.translate(10,H/2+20); ctx.rotate(-Math.PI/2); ctx.fillText(label,0,0); ctx.restore();
+  // axis ticks
+  [0,.25,.5,.75,1].forEach(f=>{ const y=H-pad-(f*(H-2*pad)); ctx.fillText((yMin+f*(yMax-yMin)).toFixed(2),2,y+3); });
+  const n=data.length, maxE=Math.max(n,10);
+  ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath();
+  data.forEach((v,i)=>{
+    const px=pad+i/(maxE-1)*(W-2*pad);
+    const py=H-pad-((v-yMin)/(yMax-yMin||1))*(H-2*pad);
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  });
+  ctx.stroke();
+  // current value dot
+  const lx=pad+(n-1)/(maxE-1)*(W-2*pad);
+  const ly=H-pad-((data[n-1]-yMin)/(yMax-yMin||1))*(H-2*pad);
+  ctx.beginPath(); ctx.arc(lx,ly,4,0,2*Math.PI); ctx.fillStyle=color; ctx.fill();
+}
+
+function drawWeightHist(weights){
+  const c=document.getElementById('weightCanvas');
+  const ctx=c.getContext('2d');
+  const W=c.width, H=c.height, pad=28;
+  ctx.clearRect(0,0,W,H);
+  const flat=weights.flat();
+  const mn=Math.min(...flat), mx=Math.max(...flat);
+  const bins=16; const bw=(mx-mn)/bins||0.1;
+  const counts=new Array(bins).fill(0);
+  flat.forEach(v=>{ const b=Math.min(bins-1,Math.floor((v-mn)/bw)); counts[b]++; });
+  const maxC=Math.max(...counts,1);
+  const barW=(W-2*pad)/bins;
+  counts.forEach((c2,i)=>{
+    const bh=(c2/maxC)*(H-2*pad);
+    const x=pad+i*barW;
+    ctx.fillStyle='rgba(26,82,118,0.6)';
+    ctx.fillRect(x,H-pad-bh,barW-1,bh);
+  });
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1; ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle='#888'; ctx.font='9px IBM Plex Mono';
+  ctx.fillText(mn.toFixed(2),pad,H-8); ctx.fillText(mx.toFixed(2),W-pad-16,H-8);
+  ctx.fillText('W¹ value →',W/2-20,H-2);
+}
+
+function updateGradBars(g1,g2){
+  const maxG=Math.max(g1,g2,0.01);
+  document.getElementById('gradBars').innerHTML=
+    `<div class="gb-row"><span class="gb-label">W¹ norm</span><div class="gb-bg"><div class="gb-bar" style="width:${(g1/maxG*100).toFixed(1)}%;background:var(--accent)"></div></div><span class="gb-val">${g1.toFixed(4)}</span></div>
+     <div class="gb-row"><span class="gb-label">W² norm</span><div class="gb-bg"><div class="gb-bar" style="width:${(g2/maxG*100).toFixed(1)}%;background:var(--accent2)"></div></div><span class="gb-val">${g2.toFixed(4)}</span></div>`;
+}
+
+function updateCM(preds){
+  const cm=[[0,0,0],[0,0,0],[0,0,0]];
+  preds.forEach((p,i)=>cm[LABELS[i]][p]++);
+  for(let r=0;r<3;r++) for(let cc=0;cc<3;cc++){
+    const el=document.getElementById(`c${r}${cc}`);
+    el.textContent=cm[r][cc];
+    el.className=r===cc?(cm[r][cc]>0?'cm-hit':''):'cm-miss';
+  }
+}
+
+function updateDeadNeurons(){
+  let dead=0,active=0;
+  X.forEach(x=>{ const{z1}=forward(x); z1.forEach(v=>{v>0?active++:dead++;}); });
+  document.getElementById('deadCount').textContent=dead;
+  document.getElementById('activeCount').textContent=active;
+}
+
+// ── Training loop ─────────────────────────────────────────────
+let running=false, animId=null;
+const lossHistory=[], accHistory=[];
+
+function doTrain(){
+  const lr=Math.pow(10,parseFloat(document.getElementById('lrSlider').value));
+  const opt=document.getElementById('optSel').value;
+  const maxEpoch=parseInt(document.getElementById('nEpochs').value);
+  let epoch=0;
+
+  function step(){
+    if(!running||epoch>=maxEpoch){ stop(); return; }
+    const stepsPerFrame=5;
+    let res;
+    for(let s=0;s<stepsPerFrame&&epoch<maxEpoch;s++){
+      res=trainStep(lr,opt); epoch++;
+      lossHistory.push(res.loss); accHistory.push(res.acc);
+    }
+    const lMax=Math.max(...lossHistory.slice(0,5),res.loss*1.5,0.5);
+    drawCurve('lossCanvas',lossHistory,'Loss','#993c1d',0,lMax);
+    drawCurve('accCanvas',accHistory,'Accuracy','#0f6e56',0,1);
+    updateGradBars(res.gradNorm1,res.gradNorm2);
+    drawWeightHist(W1);
+    updateCM(res.preds);
+    updateDeadNeurons();
+    const wflat=W1.flat();
+    document.getElementById('wMean').textContent=mean(wflat).toFixed(3);
+    document.getElementById('wStd').textContent=std(wflat).toFixed(3);
+    document.getElementById('epochBadge').textContent=`Epoch ${epoch}`;
+    document.getElementById('statusLoss').textContent=`Loss: ${res.loss.toFixed(4)}`;
+    document.getElementById('statusAcc').textContent=`Accuracy: ${(res.acc*100).toFixed(0)}%`;
+    document.getElementById('statusLR').textContent=`LR: ${lr.toExponential(1)}`;
+    document.getElementById('mFinal').textContent=(res.acc*100).toFixed(0)+'%';
+    document.getElementById('mLoss').textContent=res.loss.toFixed(3);
+    animId=requestAnimationFrame(step);
+  }
+  animId=requestAnimationFrame(step);
+}
+
+function stop(){
+  running=false;
+  if(animId){cancelAnimationFrame(animId);animId=null;}
+  document.getElementById('trainBtn').style.display='';
+  document.getElementById('stopBtn').style.display='none';
+}
+
+function reset(){
+  stop();
+  lossHistory.length=0; accHistory.length=0;
+  initNet();
+  document.getElementById('epochBadge').textContent='Epoch 0';
+  document.getElementById('statusLoss').textContent='Loss: –';
+  document.getElementById('statusAcc').textContent='Accuracy: –';
+  ['lossCanvas','accCanvas','weightCanvas'].forEach(id=>{const c=document.getElementById(id);c.getContext('2d').clearRect(0,0,c.width,c.height);});
+  document.getElementById('gradBars').innerHTML='';
+  document.getElementById('mFinal').textContent='–';
+  document.getElementById('mLoss').textContent='–';
+  document.getElementById('deadCount').textContent='–';
+  document.getElementById('activeCount').textContent='–';
+  for(let r=0;r<3;r++)for(let cc=0;cc<3;cc++)document.getElementById(`c${r}${cc}`).textContent='–';
+}
+
+document.getElementById('trainBtn').addEventListener('click',()=>{
+  if(!lossHistory.length) initNet();
+  running=true;
+  document.getElementById('trainBtn').style.display='none';
+  document.getElementById('stopBtn').style.display='';
+  doTrain();
+});
+document.getElementById('stopBtn').addEventListener('click',stop);
+document.getElementById('resetBtn').addEventListener('click',reset);
+document.getElementById('lrSlider').addEventListener('input',function(){
+  document.getElementById('lrVal').textContent=Math.pow(10,parseFloat(this.value)).toFixed(4);
+});
+
+initNet();
+</script>
+</body>
+</html>
