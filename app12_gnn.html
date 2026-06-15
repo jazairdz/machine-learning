@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 12 — GNN Message Passing Visualiser</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;
+    --accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;
+    --text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;
+    --tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;
+    --orange:#b7490a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1160px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px;}
+
+  /* Controls */
+  .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px;}
+  .ctrl{display:flex;flex-direction:column;gap:4px;}
+  .ctrl label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  select{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);min-width:130px;}
+  input[type=range]{width:120px;accent-color:var(--accent);}
+  .val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .btn:hover{background:var(--accent2);}
+  .btn.sec{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .btn.sec:hover{background:var(--tag-bg);}
+
+  /* Layout */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  @media(max-width:800px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;font-weight:600;}
+
+  /* Step indicator */
+  .step-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.04em;}
+  .step.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .step.done{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+
+  /* Metrics */
+  .metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .metric{text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;flex:1;min-width:80px;}
+  .metric .mv{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);}
+  .metric .ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+
+  /* Graph canvas */
+  #graphCanvas{display:block;width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:crosshair;}
+
+  /* Feature table */
+  .feat-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'IBM Plex Mono',monospace;}
+  .feat-table th{background:var(--code-bg);padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);}
+  .feat-table td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .feat-table tr:last-child td{border-bottom:none;}
+  .feat-bar{height:10px;border-radius:3px;background:var(--accent);margin-top:3px;transition:width .4s;}
+
+  /* Message anim */
+  .msg-log{max-height:180px;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--code-bg);border-radius:8px;padding:10px 12px;color:var(--text);}
+  .msg-log .msg-line{margin:2px 0;line-height:1.5;}
+  .msg-line.send{color:var(--accent);}
+  .msg-line.recv{color:var(--accent2);}
+  .msg-line.upd{color:var(--orange);}
+  .msg-line.info{color:var(--muted);}
+
+  /* Info box */
+  .info-box{background:var(--tag-bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;font-size:13px;color:var(--text);}
+  .info-box strong{color:var(--accent);}
+
+  /* Result bars */
+  .result-bar{margin:8px 0;}
+  .rb-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between;}
+  .rb-track{background:var(--border);border-radius:4px;height:14px;overflow:hidden;}
+  .rb-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+
+  /* Preset row */
+  .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .preset-btn{background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;letter-spacing:.04em;}
+  .preset-btn:hover,.preset-btn.active{background:var(--tag-bg);border-color:var(--accent);font-weight:700;}
+
+  /* Angle display */
+  .angle-list{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .angle-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);}
+  .angle-row:last-child{border-bottom:none;}
+  .angle-val{color:var(--accent);font-weight:700;}
+  .angle-alignn{color:var(--accent2);font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 12 — GNN Message Passing Visualiser</h1>
+  <p class="sub">Build a crystal graph · watch messages propagate · compare CGCNN vs ALIGNN representations · predict formation energy</p>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="ctrl">
+      <label>Crystal preset</label>
+      <select id="presetSel">
+        <option value="srtio3">SrTiO₃ perovskite</option>
+        <option value="fcc_cu">FCC Copper</option>
+        <option value="bcc_fe">BCC Iron</option>
+        <option value="nacl">NaCl rock-salt</option>
+        <option value="custom">Custom (click canvas)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Bond cutoff <span class="val" id="cutoffVal">4.0</span> Å</label>
+      <input type="range" id="cutoffSlider" min="2" max="8" step="0.5" value="4">
+    </div>
+    <div class="ctrl">
+      <label>Message rounds <span class="val" id="roundsVal">3</span></label>
+      <input type="range" id="roundsSlider" min="1" max="5" step="1" value="3">
+    </div>
+    <div class="ctrl">
+      <label>Model</label>
+      <select id="modelSel">
+        <option value="cgcnn">CGCNN</option>
+        <option value="alignn" selected>ALIGNN</option>
+      </select>
+    </div>
+    <button class="btn" id="runBtn">▶ Run Message Passing</button>
+    <button class="btn sec" id="resetBtn">↺ Reset</button>
+  </div>
+
+  <!-- Step indicator -->
+  <div class="step-row">
+    <div class="step" id="s1">1 · Build Graph</div>
+    <div class="step" id="s2">2 · Initialise Features</div>
+    <div class="step" id="s3">3 · Message Passing</div>
+    <div class="step" id="s4">4 · Angle Update (ALIGNN)</div>
+    <div class="step" id="s5">5 · Readout → Predict</div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metric-row">
+    <div class="metric"><div class="mv" id="mNodes">0</div><div class="ml">Atoms (nodes)</div></div>
+    <div class="metric"><div class="mv" id="mEdges">0</div><div class="ml">Bonds (edges)</div></div>
+    <div class="metric"><div class="mv" id="mAngles">0</div><div class="ml">Bond angles</div></div>
+    <div class="metric"><div class="mv" id="mRound">0</div><div class="ml">Round</div></div>
+    <div class="metric"><div class="mv" id="mParams">—</div><div class="ml">Model</div></div>
+  </div>
+
+  <!-- Row 1: Graph + Node features -->
+  <div class="grid2" style="margin-bottom:16px;">
+    <div class="panel">
+      <h2>Crystal Graph (click to add atom in Custom mode)</h2>
+      <canvas id="graphCanvas" width="520" height="340"></canvas>
+      <div style="margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);">
+        Green circles = atoms &nbsp;|&nbsp; Lines = bonds (darker = shorter) &nbsp;|&nbsp; Click atom to inspect
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Node Feature Vectors — h<sub>i</sub><sup>(k)</sup></h2>
+      <div id="nodeFeats" style="overflow-y:auto;max-height:340px;">
+        <p style="color:var(--muted);font-size:13px;">Select a crystal preset and run message passing to see atom features evolve.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Message log + Angle inspector -->
+  <div class="grid2" style="margin-bottom:16px;">
+    <div class="panel">
+      <h2>Message Passing Log</h2>
+      <div class="msg-log" id="msgLog">
+        <div class="msg-line info">Ready. Press ▶ Run Message Passing to begin.</div>
+      </div>
+      <div class="info-box" style="margin-top:10px;">
+        <strong>Send (→)</strong> = message from neighbour j to i &nbsp; <strong>Recv (✓)</strong> = aggregated &nbsp; <strong>Update (⬆)</strong> = new hidden state h<sub>i</sub>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Bond Angles — ALIGNN Line Graph</h2>
+      <div id="angleList" class="angle-list">
+        <div style="color:var(--muted);font-size:13px;">Bond angles appear here after graph construction.</div>
+      </div>
+      <div class="info-box" style="margin-top:10px;">
+        <strong>ALIGNN only:</strong> Each angle θ<sub>ijk</sub> becomes an edge in the line graph L(G) and updates the bond features e<sub>ij</sub> before the atom update step.
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Prediction output -->
+  <div class="panel" style="margin-bottom:16px;">
+    <h2>Readout → Property Prediction (simulated)</h2>
+    <div class="grid3">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Formation Energy</div>
+        <div class="result-bar">
+          <div class="rb-label"><span>Predicted</span><span id="eformVal">—</span></div>
+          <div class="rb-track"><div class="rb-fill" id="eformBar" style="width:0%;background:var(--accent);"></div></div>
+        </div>
+        <div class="result-bar">
+          <div class="rb-label"><span>DFT reference</span><span id="eformRef">—</span></div>
+          <div class="rb-track"><div class="rb-fill" id="eformRefBar" style="width:0%;background:var(--muted);"></div></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Band Gap</div>
+        <div class="result-bar">
+          <div class="rb-label"><span>Predicted</span><span id="bgVal">—</span></div>
+          <div class="rb-track"><div class="rb-fill" id="bgBar" style="width:0%;background:var(--accent2);"></div></div>
+        </div>
+        <div class="result-bar">
+          <div class="rb-label"><span>DFT reference</span><span id="bgRef">—</span></div>
+          <div class="rb-track"><div class="rb-fill" id="bgRefBar" style="width:0%;background:var(--muted);"></div></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Model Confidence</div>
+        <div id="predVerdict" style="padding:14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:13px;color:var(--muted);">
+          Run message passing first.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 4: GBF visualiser -->
+  <div class="panel">
+    <h2>Gaussian Basis Function (GBF) Edge Encoding — Hover a Bond to Inspect</h2>
+    <canvas id="gbfCanvas" width="900" height="120" style="width:100%;border:1px solid var(--border);border-radius:6px;background:#fff;"></canvas>
+    <div style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);">
+      20 Gaussian centres between 0–8 Å. Bond distance marked in blue. Each Gaussian bump is one component of the 20-dim edge feature vector fed to the GNN.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── CRYSTAL PRESETS ─────────────────────────────────────────────────────────
+const PRESETS = {
+  srtio3: {
+    name: 'SrTiO₃ perovskite',
+    atoms: [
+      { el:'Sr', Z:38, x:260, y:170, chi:0.95, r:2.00, mass:87.6 },
+      { el:'Ti', Z:22, x:260, y:170, chi:1.54, r:1.47, mass:47.9 },
+      { el:'O',  Z:8,  x:160, y:170, chi:3.44, r:0.66, mass:16.0 },
+      { el:'O',  Z:8,  x:360, y:170, chi:3.44, r:0.66, mass:16.0 },
+      { el:'O',  Z:8,  x:260, y:80,  chi:3.44, r:0.66, mass:16.0 },
+    ],
+    eform: -3.52, bg: 1.8, eformRef: -3.55, bgRef: 3.2
+  },
+  fcc_cu: {
+    name: 'FCC Copper',
+    atoms: [
+      { el:'Cu', Z:29, x:200, y:170, chi:1.90, r:1.28, mass:63.5 },
+      { el:'Cu', Z:29, x:320, y:170, chi:1.90, r:1.28, mass:63.5 },
+      { el:'Cu', Z:29, x:260, y:100, chi:1.90, r:1.28, mass:63.5 },
+      { el:'Cu', Z:29, x:260, y:240, chi:1.90, r:1.28, mass:63.5 },
+    ],
+    eform: 0.00, bg: 0.0, eformRef: 0.00, bgRef: 0.0
+  },
+  bcc_fe: {
+    name: 'BCC Iron',
+    atoms: [
+      { el:'Fe', Z:26, x:180, y:170, chi:1.83, r:1.26, mass:55.8 },
+      { el:'Fe', Z:26, x:340, y:170, chi:1.83, r:1.26, mass:55.8 },
+      { el:'Fe', Z:26, x:260, y:100, chi:1.83, r:1.26, mass:55.8 },
+      { el:'Fe', Z:26, x:260, y:240, chi:1.83, r:1.26, mass:55.8 },
+      { el:'Fe', Z:26, x:260, y:170, chi:1.83, r:1.26, mass:55.8 },
+    ],
+    eform: 0.00, bg: 0.0, eformRef: 0.00, bgRef: 0.0
+  },
+  nacl: {
+    name: 'NaCl rock-salt',
+    atoms: [
+      { el:'Na', Z:11, x:180, y:170, chi:0.93, r:1.66, mass:23.0 },
+      { el:'Cl', Z:17, x:340, y:170, chi:3.16, r:1.02, mass:35.5 },
+      { el:'Na', Z:11, x:260, y:100, chi:0.93, r:1.66, mass:23.0 },
+      { el:'Cl', Z:17, x:260, y:240, chi:3.16, r:1.02, mass:35.5 },
+      { el:'Na', Z:11, x:340, y:100, chi:0.93, r:1.66, mass:23.0 },
+      { el:'Cl', Z:17, x:180, y:240, chi:3.16, r:1.02, mass:35.5 },
+    ],
+    eform: -4.26, bg: 8.5, eformRef: -4.23, bgRef: 8.9
+  },
+  custom: {
+    name: 'Custom',
+    atoms: [],
+    eform: null, bg: null, eformRef: null, bgRef: null
+  }
+};
+
+const ELEMENT_COLORS = {
+  Sr:'#27ae60', Ti:'#8e44ad', O:'#e74c3c', Cu:'#e67e22',
+  Fe:'#95a5a6', Na:'#f1c40f', Cl:'#1abc9c', X:'#3498db'
+};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let atoms = [];
+let edges = [];
+let angles = [];
+let nodeFeats = [];
+let edgeFeats = [];
+let currentRound = 0;
+let totalRounds = 3;
+let selectedAtom = -1;
+let isRunning = false;
+let animStep = 0;
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const gc = document.getElementById('graphCanvas');
+const gctx = gc.getContext('2d');
+const gw = gc.width, gh = gc.height;
+
+const gbfc = document.getElementById('gbfCanvas');
+const gbfctx = gbfc.getContext('2d');
+const gbfw = gbfc.width, gbfh = gbfc.height;
+
+// ─── GBF ─────────────────────────────────────────────────────────────────────
+const GBF_CENTRES = Array.from({length:20}, (_,i) => i * 0.4 + 0.2); // 0.2..7.8 Å
+const GBF_WIDTH   = 0.4;
+
+function gbfExpand(d) {
+  return GBF_CENTRES.map(c => Math.exp(-((d-c)**2) / (2*GBF_WIDTH**2)));
+}
+
+function renderGBF(d) {
+  const ctx = gbfctx;
+  const W = gbfw, H = gbfh;
+  ctx.clearRect(0,0,W,H);
+  const padL=40, padR=20, padT=15, padB=25;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+
+  // Axes
+  ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+plotH);
+  ctx.lineTo(padL+plotW, padT+plotH); ctx.stroke();
+
+  // Distance scale
+  ctx.fillStyle='#8b949e'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='center';
+  for(let i=0;i<=8;i++) {
+    const xp = padL + (i/8)*plotW;
+    ctx.fillText(i+'Å', xp, padT+plotH+14);
+    ctx.strokeStyle='#e0ddd6'; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(xp, padT); ctx.lineTo(xp, padT+plotH); ctx.stroke();
+  }
+
+  // Gaussian bumps (greyed)
+  for(let i=0;i<20;i++) {
+    const c = GBF_CENTRES[i];
+    ctx.strokeStyle='rgba(26,82,118,0.15)'; ctx.lineWidth=1;
+    ctx.beginPath();
+    let first=true;
+    for(let x=0;x<plotW;x++) {
+      const dist = (x/plotW)*8;
+      const y = Math.exp(-((dist-c)**2)/(2*GBF_WIDTH**2));
+      const px=padL+x, py=padT+plotH - y*plotH*0.85;
+      if(first){ctx.moveTo(px,py);first=false;}else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+  }
+
+  // Active bond distance
+  if(d !== null && d !== undefined) {
+    const gbf = gbfExpand(d);
+    for(let i=0;i<20;i++) {
+      const c=GBF_CENTRES[i];
+      const bx = padL + (c/8)*plotW;
+      const by = padT + plotH - gbf[i]*plotH*0.85;
+      ctx.fillStyle=`rgba(26,82,118,${0.3+gbf[i]*0.7})`;
+      ctx.beginPath(); ctx.arc(bx, by, 4+gbf[i]*4, 0, Math.PI*2); ctx.fill();
+    }
+    // Bond distance line
+    const dx = padL + (d/8)*plotW;
+    ctx.strokeStyle='#1a5276'; ctx.lineWidth=2; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(dx, padT); ctx.lineTo(dx, padT+plotH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#1a5276'; ctx.textAlign='center';
+    ctx.font='10px IBM Plex Mono';
+    ctx.fillText(`d = ${d.toFixed(2)} Å`, dx, padT-3);
+  }
+}
+
+// ─── GRAPH CONSTRUCTION ──────────────────────────────────────────────────────
+function dist2d(a, b) {
+  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
+}
+
+function pixelToAngstrom(px) {
+  // 1 Å ≈ 30px in our canvas
+  return px / 30;
+}
+
+function buildGraph() {
+  const cutoffPx = parseFloat(document.getElementById('cutoffSlider').value) * 30;
+  edges = [];
+  for(let i=0;i<atoms.length;i++) {
+    for(let j=i+1;j<atoms.length;j++) {
+      const d = dist2d(atoms[i], atoms[j]);
+      if(d < cutoffPx) {
+        const dA = pixelToAngstrom(d);
+        edges.push({ i, j, d: dA, gbf: gbfExpand(dA) });
+      }
+    }
+  }
+  buildAngles();
+  initFeatures();
+  updateMetrics();
+}
+
+function buildAngles() {
+  angles = [];
+  for(let j=0;j<atoms.length;j++) {
+    // Find all bonds involving atom j
+    const bonds = edges.filter(e => e.i===j || e.j===j);
+    for(let a=0;a<bonds.length;a++) {
+      for(let b=a+1;b<bonds.length;b++) {
+        const ba = bonds[a], bb = bonds[b];
+        // atoms i and k connected through j
+        const iA = ba.i===j ? ba.j : ba.i;
+        const kA = bb.i===j ? bb.j : bb.i;
+        // angle between vectors j->iA and j->kA
+        const v1x = atoms[iA].x - atoms[j].x, v1y = atoms[iA].y - atoms[j].y;
+        const v2x = atoms[kA].x - atoms[j].x, v2y = atoms[kA].y - atoms[j].y;
+        const dot = v1x*v2x + v1y*v2y;
+        const mag = Math.sqrt(v1x**2+v1y**2) * Math.sqrt(v2x**2+v2y**2);
+        const theta = mag > 0 ? Math.acos(Math.min(1,Math.max(-1,dot/mag))) * 180/Math.PI : 0;
+        angles.push({ i:iA, j, k:kA, theta, bondA:a, bondB:b });
+      }
+    }
+  }
+}
+
+function initFeatures() {
+  nodeFeats = atoms.map(a => ({
+    h: [a.Z/100, a.chi/4, a.r/2.5, a.mass/200, 0.5, 0.5, 0.5, 0.5],
+    label: a.el
+  }));
+  edgeFeats = edges.map(e => ({
+    e: gbfExpand(e.d).slice(0,8),
+    d: e.d
+  }));
+}
+
+// ─── RENDERING ───────────────────────────────────────────────────────────────
+function renderGraph() {
+  const ctx = gctx;
+  ctx.clearRect(0,0,gw,gh);
+
+  // Edges
+  edges.forEach((e,idx) => {
+    const a = atoms[e.i], b = atoms[e.j];
+    const alpha = Math.max(0.2, 1 - e.d/8);
+    ctx.strokeStyle=`rgba(15,110,86,${alpha})`;
+    ctx.lineWidth = currentRound > 0 ? 2.5 : 1.5;
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    // Distance label
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    ctx.fillStyle='#8b949e'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='center';
+    ctx.fillText(e.d.toFixed(2)+'Å', mx, my-5);
+  });
+
+  // Angle arcs (ALIGNN mode)
+  if(document.getElementById('modelSel').value === 'alignn') {
+    angles.forEach(ang => {
+      const j = atoms[ang.j];
+      ctx.strokeStyle='rgba(108,52,131,0.25)'; ctx.lineWidth=1; ctx.setLineDash([2,3]);
+      // Draw angle arc approximation
+      const v1x=atoms[ang.i].x-j.x, v1y=atoms[ang.i].y-j.y;
+      const ang1 = Math.atan2(v1y,v1x);
+      const v2x=atoms[ang.k].x-j.x, v2y=atoms[ang.k].y-j.y;
+      const ang2 = Math.atan2(v2y,v2x);
+      ctx.beginPath(); ctx.arc(j.x, j.y, 22, ang1, ang2, false); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  // Nodes
+  atoms.forEach((a, i) => {
+    const r = 22;
+    const col = ELEMENT_COLORS[a.el] || '#3498db';
+    const isSelected = i === selectedAtom;
+    ctx.shadowColor=col; ctx.shadowBlur= currentRound>0 ? 12 : 4;
+    ctx.fillStyle = isSelected ? '#fff' : col;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = isSelected ? 3 : 2;
+    ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    if(isSelected) ctx.stroke(); else ctx.fill();
+    ctx.shadowBlur=0;
+
+    // Element label
+    ctx.fillStyle = isSelected ? col : '#fff';
+    ctx.font='bold 13px IBM Plex Mono'; ctx.textAlign='center';
+    ctx.fillText(a.el, a.x, a.y+4);
+
+    // Feature intensity ring (shows h[0] = Z/100)
+    if(nodeFeats[i]) {
+      const fval = nodeFeats[i].h[0];
+      ctx.strokeStyle=`rgba(26,82,118,${fval})`;
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(a.x, a.y, r+5, 0, Math.PI*2*fval); ctx.stroke();
+    }
+  });
+}
+
+function renderNodeFeats() {
+  const div = document.getElementById('nodeFeats');
+  if(!atoms.length) { div.innerHTML='<p style="color:var(--muted);font-size:13px;">No atoms yet.</p>'; return; }
+
+  const featureNames = ['Z/100','χ/4','r/2.5','mass/200','h4','h5','h6','h7'];
+  let html = '<table class="feat-table"><thead><tr><th>Atom</th>';
+  featureNames.forEach(n => html += `<th>${n}</th>`);
+  html += '<th>‖h‖</th></tr></thead><tbody>';
+
+  atoms.forEach((a, i) => {
+    const h = nodeFeats[i] ? nodeFeats[i].h : Array(8).fill(0);
+    const norm = Math.sqrt(h.reduce((s,v)=>s+v*v,0));
+    const col = ELEMENT_COLORS[a.el] || '#3498db';
+    html += `<tr><td><span style="color:${col};font-weight:700;">${a.el}${i}</span></td>`;
+    h.forEach(v => {
+      const w = Math.min(100, Math.abs(v)*100);
+      html += `<td><span style="color:var(--accent)">${v.toFixed(3)}</span><div class="feat-bar" style="width:${w}%;background:${col}22;border:1px solid ${col}66;"></div></td>`;
+    });
+    html += `<td style="color:var(--muted)">${norm.toFixed(3)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  div.innerHTML = html;
+}
+
+function renderAngles() {
+  const div = document.getElementById('angleList');
+  const model = document.getElementById('modelSel').value;
+  if(!angles.length) { div.innerHTML='<div style="color:var(--muted);font-size:13px;">No angles computed yet.</div>'; return; }
+
+  let html = '';
+  angles.forEach(ang => {
+    const label = `${atoms[ang.i].el}${ang.i}–${atoms[ang.j].el}${ang.j}–${atoms[ang.k].el}${ang.k}`;
+    const alignnNote = model==='alignn'
+      ? `<span class="angle-alignn">→ ALIGNN line-graph edge</span>`
+      : `<span class="angle-alignn" style="color:var(--muted);">ignored in CGCNN</span>`;
+    html += `<div class="angle-row">
+      <span>${label}</span>
+      <span class="angle-val">${ang.theta.toFixed(1)}°</span>
+      ${alignnNote}
+    </div>`;
+  });
+  div.innerHTML = html;
+}
+
+// ─── MESSAGE PASSING SIMULATION ──────────────────────────────────────────────
+function log(msg, cls='info') {
+  const div = document.getElementById('msgLog');
+  const line = document.createElement('div');
+  line.className = `msg-line ${cls}`;
+  line.textContent = msg;
+  div.appendChild(line);
+  div.scrollTop = div.scrollHeight;
+}
+
+async function runMP() {
+  if(isRunning || !atoms.length) return;
+  isRunning = true;
+  document.getElementById('runBtn').textContent = '⏳ Running…';
+  document.getElementById('msgLog').innerHTML = '';
+  totalRounds = parseInt(document.getElementById('roundsSlider').value);
+  const model = document.getElementById('modelSel').value;
+
+  setStep(2);
+  log('Initialising node features h_i^(0) from atomic properties…', 'info');
+  await sleep(600);
+
+  for(let k=0; k<totalRounds; k++) {
+    currentRound = k+1;
+    document.getElementById('mRound').textContent = currentRound;
+    setStep(3);
+    log(`\n── Round ${k+1} / ${totalRounds} ──`, 'info');
+
+    // ALIGNN: line graph pass first
+    if(model === 'alignn' && angles.length > 0) {
+      setStep(4);
+      log(`[ALIGNN] Line graph: updating bond features with angle context…`, 'send');
+      for(let ang of angles) {
+        const label = `∠${atoms[ang.i].el}${ang.i}–${atoms[ang.j].el}${ang.j}–${atoms[ang.k].el}${ang.k} = ${ang.theta.toFixed(1)}°`;
+        log(`  → angle message: ${label}`, 'send');
+        await sleep(120);
+        // update edge features
+        const angRad = ang.theta * Math.PI / 180;
+        const idx = edges.findIndex(e =>
+          (e.i===ang.i&&e.j===ang.j)||(e.i===ang.j&&e.j===ang.i)
+        );
+        if(idx>=0 && edgeFeats[idx]) {
+          edgeFeats[idx].e = edgeFeats[idx].e.map((v,ii) =>
+            v + 0.05 * Math.sin(angRad + ii*0.3)
+          );
+        }
+      }
+      setStep(3);
+    }
+
+    // Atom message passing
+    const newH = atoms.map((_,i) => [...nodeFeats[i].h]);
+    for(let i=0; i<atoms.length; i++) {
+      const nbrs = edges.filter(e => e.i===i || e.j===i);
+      if(!nbrs.length) continue;
+      log(`Atom ${atoms[i].el}${i}: collecting ${nbrs.length} messages…`, 'recv');
+      await sleep(80);
+      let aggr = Array(8).fill(0);
+      for(let e of nbrs) {
+        const j = e.i===i ? e.j : e.i;
+        log(`  → msg from ${atoms[j].el}${j} via bond ${e.d.toFixed(2)}Å`, 'send');
+        await sleep(60);
+        // message = φ(h_j, e_ij): simplified linear mix
+        const hj = nodeFeats[j].h;
+        const ef = edgeFeats[edges.indexOf(e)] ? edgeFeats[edges.indexOf(e)].e : Array(8).fill(0);
+        for(let d=0;d<8;d++) {
+          aggr[d] += 0.3 * hj[d] + 0.1 * (ef[d] || 0);
+        }
+      }
+      // update
+      const norm = Math.sqrt(aggr.reduce((s,v)=>s+v*v,0)) || 1;
+      newH[i] = newH[i].map((v,d) => Math.tanh(v + aggr[d] / norm));
+      log(`  ⬆ Updated h_${i}: ‖h‖ = ${Math.sqrt(newH[i].reduce((s,v)=>s+v*v,0)).toFixed(3)}`, 'upd');
+      await sleep(80);
+    }
+    nodeFeats = atoms.map((a,i) => ({ h: newH[i], label: a.el }));
+    renderNodeFeats();
+    renderGraph();
+  }
+
+  // Readout
+  setStep(5);
+  log('\n── Readout: pooling atom features → property prediction ──', 'info');
+  await sleep(500);
+  predict();
+
+  isRunning = false;
+  document.getElementById('runBtn').textContent = '▶ Run Message Passing';
+}
+
+function predict() {
+  const preset = document.getElementById('presetSel').value;
+  const p = PRESETS[preset];
+  if(!p || p.eform === null) {
+    document.getElementById('predVerdict').innerHTML =
+      '<span style="color:var(--muted)">Custom graph — no reference data available.</span>';
+    return;
+  }
+
+  // Simulate noise around known value
+  const noiseE = (Math.random()-0.5)*0.08;
+  const noiseB = (Math.random()-0.5)*0.15;
+  const model  = document.getElementById('modelSel').value;
+  const factor = model==='alignn' ? 0.97 : 0.92; // ALIGNN is better
+
+  const eP = p.eform + noiseE * factor;
+  const bP = p.bg    + noiseB * factor;
+
+  document.getElementById('eformVal').textContent = `${eP.toFixed(3)} eV/atom`;
+  document.getElementById('eformRef').textContent = `${p.eformRef} eV/atom`;
+  document.getElementById('bgVal').textContent    = `${bP.toFixed(2)} eV`;
+  document.getElementById('bgRef').textContent    = `${p.bgRef} eV`;
+
+  const maxE = 6, maxB = 12;
+  setTimeout(()=>{
+    document.getElementById('eformBar').style.width    = Math.min(100,Math.abs(eP)/maxE*100)+'%';
+    document.getElementById('eformRefBar').style.width = Math.min(100,Math.abs(p.eformRef)/maxE*100)+'%';
+    document.getElementById('bgBar').style.width       = Math.min(100,bP/maxB*100)+'%';
+    document.getElementById('bgRefBar').style.width    = Math.min(100,p.bgRef/maxB*100)+'%';
+  }, 100);
+
+  const mae_e = Math.abs(eP - p.eformRef);
+  const model_name = model==='alignn' ? 'ALIGNN' : 'CGCNN';
+  const good = mae_e < 0.1;
+  document.getElementById('predVerdict').innerHTML=`
+    <div style="padding:12px;border-radius:8px;background:${good?'#e1f5ee':'#faeeda'};border:1px solid ${good?'#0f6e56':'#854f0b'};">
+      <strong style="color:${good?'#0f6e56':'#854f0b'}">${good?'✓ Good prediction':'⚠ Moderate error'}</strong><br>
+      <span style="font-size:12px;color:#444;">${model_name} · ΔE<sub>form</sub> = ${mae_e.toFixed(3)} eV/atom · ${totalRounds} message rounds</span>
+    </div>`;
+
+  log(`\nPredicted E_form = ${eP.toFixed(3)} eV/atom (ref ${p.eformRef})`, 'upd');
+  log(`Predicted E_gap  = ${bP.toFixed(2)} eV (ref ${p.bgRef})`, 'upd');
+  log(`MAE E_form = ${mae_e.toFixed(3)} eV/atom`, mae_e<0.1?'recv':'upd');
+}
+
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function setStep(n) {
+  for(let i=1;i<=5;i++) {
+    const el = document.getElementById('s'+i);
+    el.className='step'+(i<n?' done':i===n?' active':'');
+  }
+}
+
+function updateMetrics() {
+  document.getElementById('mNodes').textContent  = atoms.length;
+  document.getElementById('mEdges').textContent  = edges.length;
+  document.getElementById('mAngles').textContent = angles.length;
+  document.getElementById('mRound').textContent  = currentRound;
+  document.getElementById('mParams').textContent = document.getElementById('modelSel').value.toUpperCase();
+}
+
+function loadPreset(name) {
+  const p = PRESETS[name];
+  if(!p) return;
+  atoms = p.atoms.map(a => ({...a}));
+  currentRound = 0;
+  document.getElementById('msgLog').innerHTML = '<div class="msg-line info">Graph loaded. Press ▶ to begin message passing.</div>';
+  buildGraph();
+  renderGraph();
+  renderNodeFeats();
+  renderAngles();
+  renderGBF(edges.length ? edges[0].d : null);
+  setStep(1);
+  document.getElementById('predVerdict').innerHTML='Run message passing first.';
+  document.getElementById('eformVal').textContent='—';
+  document.getElementById('bgVal').textContent='—';
+  document.getElementById('eformBar').style.width='0%';
+  document.getElementById('bgBar').style.width='0%';
+  document.getElementById('eformRefBar').style.width='0%';
+  document.getElementById('bgRefBar').style.width='0%';
+}
+
+// ─── CANVAS INTERACTION ──────────────────────────────────────────────────────
+gc.addEventListener('click', e => {
+  const rect = gc.getBoundingClientRect();
+  const scaleX = gw / rect.width, scaleY = gh / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top)  * scaleY;
+
+  // Check if clicking existing atom
+  let hit = -1;
+  for(let i=0;i<atoms.length;i++) {
+    if(Math.hypot(atoms[i].x-mx, atoms[i].y-my) < 26) { hit=i; break; }
+  }
+  if(hit >= 0) {
+    selectedAtom = hit;
+    // Show GBF for first edge involving this atom
+    const e0 = edges.find(e=>e.i===hit||e.j===hit);
+    if(e0) renderGBF(e0.d);
+    renderGraph();
+    return;
+  }
+
+  // Custom mode: add atom
+  if(document.getElementById('presetSel').value === 'custom') {
+    const els = ['Fe','Cu','O','Al','Ti','Si','N','H'];
+    const el = els[atoms.length % els.length];
+    const Z_map = {Fe:26,Cu:29,O:8,Al:13,Ti:22,Si:14,N:7,H:1};
+    const chi_map={Fe:1.83,Cu:1.90,O:3.44,Al:1.61,Ti:1.54,Si:1.90,N:3.04,H:2.20};
+    const r_map  ={Fe:1.26,Cu:1.28,O:0.66,Al:1.43,Ti:1.47,Si:1.17,N:0.71,H:0.31};
+    const m_map  ={Fe:55.8,Cu:63.5,O:16.0,Al:27.0,Ti:47.9,Si:28.1,N:14.0,H:1.0};
+    atoms.push({ el, Z:Z_map[el], x:mx, y:my, chi:chi_map[el], r:r_map[el], mass:m_map[el] });
+    buildGraph();
+    renderGraph();
+    renderNodeFeats();
+    renderAngles();
+    if(edges.length) renderGBF(edges[0].d);
+  }
+});
+
+gc.addEventListener('mousemove', e => {
+  const rect = gc.getBoundingClientRect();
+  const scaleX = gw/rect.width, scaleY = gh/rect.height;
+  const mx = (e.clientX-rect.left)*scaleX, my = (e.clientY-rect.top)*scaleY;
+  for(let edge of edges) {
+    const a=atoms[edge.i], b=atoms[edge.j];
+    const lx=(a.x+b.x)/2, ly=(a.y+b.y)/2;
+    if(Math.hypot(lx-mx, ly-my) < 20) { renderGBF(edge.d); return; }
+  }
+});
+
+// ─── CONTROLS WIRING ─────────────────────────────────────────────────────────
+document.getElementById('presetSel').onchange = function() {
+  selectedAtom=-1;
+  loadPreset(this.value);
+};
+document.getElementById('cutoffSlider').oninput = function() {
+  document.getElementById('cutoffVal').textContent = parseFloat(this.value).toFixed(1);
+  buildGraph(); renderGraph(); renderAngles(); renderNodeFeats();
+};
+document.getElementById('roundsSlider').oninput = function() {
+  document.getElementById('roundsVal').textContent = this.value;
+};
+document.getElementById('modelSel').onchange = function() {
+  document.getElementById('mParams').textContent = this.value.toUpperCase();
+  renderAngles();
+};
+document.getElementById('runBtn').onclick = runMP;
+document.getElementById('resetBtn').onclick = () => {
+  currentRound=0; selectedAtom=-1;
+  loadPreset(document.getElementById('presetSel').value);
+};
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadPreset('srtio3');
+setStep(1);
+</script>
+</body>
+</html>
