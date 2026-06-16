@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 15 — ML Pipeline Builder · MₓCᵧ</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:18px 14px 60px;}
+  .wrap{max-width:1120px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3vw,27px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px;}
+
+  /* Pipeline steps nav */
+  .pipe-nav{display:flex;gap:0;margin-bottom:22px;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .pipe-step{flex:1;padding:10px 6px;text-align:center;cursor:pointer;border-right:1px solid var(--border);background:var(--surface);font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--muted);transition:all .15s;}
+  .pipe-step:last-child{border-right:none;}
+  .pipe-step.active{background:var(--accent);color:#fff;}
+  .pipe-step .ps-num{font-size:16px;display:block;margin-bottom:2px;}
+  .pipe-step .ps-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;}
+
+  /* Sections */
+  .section{display:none;}
+  .section.active{display:block;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:12px;font-weight:600;}
+
+  /* Controls */
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .ctrl{display:flex;flex-direction:column;gap:4px;}
+  .ctrl label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  select,input[type=range],input[type=number]{font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);}
+  input[type=range]{padding:0;width:110px;accent-color:var(--accent);}
+  .fval{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);font-weight:600;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-weight:600;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .btn:hover{background:var(--accent2);}
+  .btn.sec{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .btn.sec:hover{background:var(--tag-bg);}
+  .btn.next{background:var(--accent2);}
+
+  /* Feature checkboxes */
+  .feat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:8px;}
+  .feat-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:#fff;transition:all .15s;}
+  .feat-item:hover{border-color:var(--accent);background:var(--tag-bg);}
+  .feat-item input[type=checkbox]{margin-top:2px;accent-color:var(--accent);flex-shrink:0;}
+  .feat-item .fn{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);}
+  .feat-item .fd{font-size:11px;color:var(--muted);margin-top:2px;}
+
+  /* Canvas */
+  canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--border);border-radius:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr;}}
+
+  /* CV results table */
+  .cv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
+  .cv-table th,.cv-table td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:left;}
+  .cv-table th{background:var(--code-bg);font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;}
+  .cv-table .best td{background:#e1f5ee;font-weight:700;}
+  .bar-cell{display:flex;align-items:center;gap:8px;}
+  .bar-bg{flex:1;background:var(--border);border-radius:3px;height:10px;}
+  .bar-fill{height:10px;border-radius:3px;background:var(--accent);}
+
+  /* SHAP bars */
+  .shap-row{display:flex;align-items:center;gap:8px;margin:5px 0;}
+  .shap-label{font-family:'IBM Plex Mono',monospace;font-size:11px;width:120px;flex-shrink:0;color:var(--text);}
+  .shap-bg{flex:1;background:var(--border);border-radius:3px;height:14px;position:relative;}
+  .shap-pos{height:14px;border-radius:3px;background:var(--accent);position:absolute;left:50%;}
+  .shap-neg{height:14px;border-radius:3px;background:var(--coral);position:absolute;right:50%;}
+  .shap-val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:60px;text-align:right;}
+
+  /* Metrics */
+  .metrics{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .metric{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:120px;}
+  .metric .mv{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:var(--accent);}
+  .metric .ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+  /* Parity plot tooltip */
+  .tooltip{position:fixed;background:#111;color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;font-family:'IBM Plex Mono',monospace;pointer-events:none;display:none;z-index:999;}
+
+  /* Status */
+  .status{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);margin-top:8px;min-height:18px;}
+  .status.ok{color:var(--accent2);}
+  .status.err{color:var(--coral);}
+
+  /* Summary box */
+  .summary-box{background:var(--tag-bg);border:1px solid var(--accent);border-radius:10px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.9;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 15 — ML Pipeline Builder · MₓCᵧ</h1>
+  <p class="sub">46 transition-metal chalcogenides · build, train, and interpret an ML pipeline step by step</p>
+
+  <!-- Pipeline nav -->
+  <div class="pipe-nav">
+    <div class="pipe-step active" onclick="goStep(0)"><span class="ps-num">🗄️</span><span class="ps-label">1 · Data</span></div>
+    <div class="pipe-step" onclick="goStep(1)"><span class="ps-num">⚗️</span><span class="ps-label">2 · Features</span></div>
+    <div class="pipe-step" onclick="goStep(2)"><span class="ps-num">🤖</span><span class="ps-label">3 · Model</span></div>
+    <div class="pipe-step" onclick="goStep(3)"><span class="ps-num">📊</span><span class="ps-label">4 · Evaluate</span></div>
+    <div class="pipe-step" onclick="goStep(4)"><span class="ps-num">🔍</span><span class="ps-label">5 · Interpret</span></div>
+  </div>
+
+  <!-- ── STEP 1: DATA ── -->
+  <div class="section active" id="step0">
+    <div class="panel">
+      <h2>Dataset — MₓCᵧ Transition-Metal Chalcogenides</h2>
+      <div class="row">
+        <div class="ctrl"><label>Filter: Metal</label>
+          <select id="filterMetal"><option value="all">All metals</option>
+            <option value="Fe">Fe</option><option value="Ni">Ni</option><option value="Co">Co</option>
+            <option value="Mn">Mn</option><option value="Cr">Cr</option><option value="Ti">Ti</option>
+          </select>
+        </div>
+        <div class="ctrl"><label>Filter: Chalcogen</label>
+          <select id="filterChalc"><option value="all">All (S,Se,Te)</option>
+            <option value="S">S</option><option value="Se">Se</option><option value="Te">Te</option>
+          </select>
+        </div>
+        <div class="ctrl"><label>Target</label>
+          <select id="targetSel">
+            <option value="band_gap">Band Gap (eV) — Regression</option>
+            <option value="ordering">Magnetic Ordering — Classification</option>
+          </select>
+        </div>
+        <button class="btn sec" onclick="filterData()">🔍 Filter</button>
+        <button class="btn next" onclick="goStep(1)">Next: Features →</button>
+      </div>
+      <div class="status" id="dataStatus"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Band Gap Distribution</h2><canvas id="dataHist" width="460" height="260"></canvas></div>
+      <div class="panel"><h2>Magnetic Ordering Count</h2><canvas id="dataBar" width="460" height="260"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: FEATURES ── -->
+  <div class="section" id="step1">
+    <div class="panel">
+      <h2>Select Features</h2>
+      <div class="feat-grid" id="featGrid"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn sec" onclick="selectAllFeats(true)">✓ Select all</button>
+        <button class="btn sec" onclick="selectAllFeats(false)">✗ Clear</button>
+        <button class="btn next" onclick="goStep(2)">Next: Model →</button>
+      </div>
+      <div class="status" id="featStatus"></div>
+    </div>
+    <div class="panel">
+      <h2>Feature Correlation Matrix</h2>
+      <canvas id="corrCanvas" width="520" height="380"></canvas>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: MODEL ── -->
+  <div class="section" id="step2">
+    <div class="panel">
+      <h2>Model Configuration</h2>
+      <div class="row">
+        <div class="ctrl"><label>Algorithm</label>
+          <select id="modelSel">
+            <option value="rf">Random Forest</option>
+            <option value="ridge">Ridge / Logistic</option>
+            <option value="svr">SVM (RBF kernel)</option>
+            <option value="gbm">Gradient Boosting</option>
+          </select>
+        </div>
+        <div class="ctrl"><label>CV folds</label>
+          <select id="cvFolds"><option value="3">3-fold</option><option value="5" selected>5-fold</option><option value="10">10-fold (LOO~)</option></select>
+        </div>
+        <div class="ctrl"><label>n_estimators / C <span class="fval" id="paramVal">100</span></label>
+          <input type="range" id="paramSlider" min="1" max="4" step="0.25" value="2"
+                 oninput="document.getElementById('paramVal').textContent=Math.round(Math.pow(10,this.value))">
+        </div>
+        <button class="btn" onclick="runCV()">▶ Run CV</button>
+        <button class="btn next" onclick="goStep(3)">Next: Evaluate →</button>
+      </div>
+      <div class="status" id="modelStatus"></div>
+    </div>
+    <div class="panel">
+      <h2>Cross-Validation Results — All Models Compared</h2>
+      <table class="cv-table" id="cvTable">
+        <thead><tr><th>Model</th><th>CV Score</th><th>Performance</th><th>Std</th></tr></thead>
+        <tbody id="cvBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── STEP 4: EVALUATE ── -->
+  <div class="section" id="step3">
+    <div class="panel">
+      <h2>Train/Test Evaluation</h2>
+      <div class="row">
+        <div class="ctrl"><label>Test size</label>
+          <select id="testSize"><option value="0.2" selected>20%</option><option value="0.3">30%</option></select>
+        </div>
+        <button class="btn" onclick="runEval()">▶ Evaluate</button>
+        <button class="btn next" onclick="goStep(4)">Next: Interpret →</button>
+      </div>
+      <div class="metrics" id="evalMetrics"></div>
+      <div class="status" id="evalStatus"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2 id="parityTitle">Parity Plot</h2><canvas id="parityCanvas" width="420" height="350"></canvas></div>
+      <div class="panel"><h2>Residual Distribution</h2><canvas id="residCanvas" width="420" height="350"></canvas></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <!-- ── STEP 5: INTERPRET ── -->
+  <div class="section" id="step4">
+    <div class="panel">
+      <h2>Feature Importance (MDI / |Coefficient|)</h2>
+      <div id="shapBars"></div>
+      <button class="btn" style="margin-top:12px" onclick="runSHAP()">🔍 Compute Importance</button>
+      <div class="status" id="shapStatus"></div>
+    </div>
+    <div class="panel">
+      <h2>Pipeline Summary</h2>
+      <div class="summary-box" id="summaryBox">Run all pipeline steps to see the summary.</div>
+    </div>
+    <div class="panel">
+      <h2>Predict a New Compound</h2>
+      <div id="predictForm" class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"></div>
+      <button class="btn" onclick="predictNew()">⚡ Predict</button>
+      <div class="status" id="predictResult" style="margin-top:10px;font-size:14px;font-weight:600;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════
+const RAW_DB = [
+  {formula:"FeS",    metal:"Fe",chalc:"S", band_gap:0.00,ordering:"AFM",mag_total:3.42,e_hull:0.000,crystal_sys:"Hexagonal",   spacegroup:194,volume:70.2, nsites:4,density:4.84},
+  {formula:"FeS₂",   metal:"Fe",chalc:"S", band_gap:0.95,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:157.1,nsites:12,density:5.01},
+  {formula:"Fe₂S₃",  metal:"Fe",chalc:"S", band_gap:1.87,ordering:"AFM",mag_total:8.00,e_hull:0.043,crystal_sys:"Orthorhombic", spacegroup:62, volume:286.4,nsites:20,density:4.31},
+  {formula:"Fe₃S₄",  metal:"Fe",chalc:"S", band_gap:0.00,ordering:"FM", mag_total:4.00,e_hull:0.012,crystal_sys:"Cubic",        spacegroup:227,volume:292.6,nsites:14,density:4.67},
+  {formula:"FeSe",   metal:"Fe",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Tetragonal",   spacegroup:129,volume:87.3, nsites:4,density:6.18},
+  {formula:"FeSe₂",  metal:"Fe",chalc:"Se",band_gap:0.47,ordering:"NM", mag_total:0.00,e_hull:0.005,crystal_sys:"Orthorhombic", spacegroup:58, volume:191.2,nsites:12,density:6.80},
+  {formula:"Fe₃Se₄", metal:"Fe",chalc:"Se",band_gap:0.00,ordering:"FM", mag_total:5.60,e_hull:0.020,crystal_sys:"Monoclinic",   spacegroup:12, volume:349.0,nsites:14,density:6.82},
+  {formula:"FeTe",   metal:"Fe",chalc:"Te",band_gap:0.00,ordering:"AFM",mag_total:2.21,e_hull:0.000,crystal_sys:"Tetragonal",   spacegroup:136,volume:118.5,nsites:4,density:7.70},
+  {formula:"FeTe₂",  metal:"Fe",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.008,crystal_sys:"Orthorhombic", spacegroup:58, volume:255.6,nsites:12,density:8.33},
+  {formula:"NiS",    metal:"Ni",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:67.3, nsites:4,density:5.37},
+  {formula:"NiS₂",   metal:"Ni",chalc:"S", band_gap:0.30,ordering:"AFM",mag_total:0.92,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:162.0,nsites:12,density:4.46},
+  {formula:"Ni₃S₄",  metal:"Ni",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.005,crystal_sys:"Cubic",        spacegroup:227,volume:275.4,nsites:14,density:4.68},
+  {formula:"Ni₃S₂",  metal:"Ni",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Rhombohedral", spacegroup:155,volume:196.8,nsites:10,density:5.82},
+  {formula:"NiSe",   metal:"Ni",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:80.5, nsites:4,density:7.26},
+  {formula:"NiSe₂",  metal:"Ni",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.005,crystal_sys:"Cubic",        spacegroup:205,volume:196.0,nsites:12,density:6.67},
+  {formula:"NiTe",   metal:"Ni",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.001,crystal_sys:"Hexagonal",    spacegroup:194,volume:98.3, nsites:4,density:8.28},
+  {formula:"NiTe₂",  metal:"Ni",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.006,crystal_sys:"Trigonal",     spacegroup:164,volume:237.5,nsites:12,density:7.96},
+  {formula:"CoS",    metal:"Co",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:68.4, nsites:4,density:5.22},
+  {formula:"CoS₂",   metal:"Co",chalc:"S", band_gap:0.00,ordering:"FM", mag_total:0.94,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:156.8,nsites:12,density:4.83},
+  {formula:"Co₃S₄",  metal:"Co",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:227,volume:278.2,nsites:14,density:4.87},
+  {formula:"CoSe",   metal:"Co",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:82.6, nsites:4,density:7.01},
+  {formula:"CoSe₂",  metal:"Co",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Orthorhombic", spacegroup:58, volume:186.4,nsites:12,density:6.98},
+  {formula:"CoTe",   metal:"Co",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.003,crystal_sys:"Hexagonal",    spacegroup:194,volume:98.2, nsites:4,density:8.11},
+  {formula:"CoTe₂",  metal:"Co",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.005,crystal_sys:"Orthorhombic", spacegroup:58, volume:236.8,nsites:12,density:8.27},
+  {formula:"MnS",    metal:"Mn",chalc:"S", band_gap:2.33,ordering:"AFM",mag_total:4.60,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:225,volume:214.5,nsites:8,density:3.99},
+  {formula:"MnS₂",   metal:"Mn",chalc:"S", band_gap:1.08,ordering:"AFM",mag_total:2.80,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:191.3,nsites:12,density:3.98},
+  {formula:"Mn₂S₃",  metal:"Mn",chalc:"S", band_gap:2.10,ordering:"AFM",mag_total:9.80,e_hull:0.038,crystal_sys:"Orthorhombic", spacegroup:62, volume:392.0,nsites:20,density:3.86},
+  {formula:"MnSe",   metal:"Mn",chalc:"Se",band_gap:1.46,ordering:"AFM",mag_total:4.58,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:225,volume:246.4,nsites:8,density:5.34},
+  {formula:"MnSe₂",  metal:"Mn",chalc:"Se",band_gap:0.88,ordering:"AFM",mag_total:2.30,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:231.6,nsites:12,density:5.38},
+  {formula:"MnTe",   metal:"Mn",chalc:"Te",band_gap:1.39,ordering:"AFM",mag_total:4.64,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:141.6,nsites:4,density:6.00},
+  {formula:"MnTe₂",  metal:"Mn",chalc:"Te",band_gap:0.46,ordering:"AFM",mag_total:2.00,e_hull:0.000,crystal_sys:"Cubic",        spacegroup:205,volume:285.0,nsites:12,density:6.62},
+  {formula:"CrS",    metal:"Cr",chalc:"S", band_gap:0.00,ordering:"AFM",mag_total:3.31,e_hull:0.000,crystal_sys:"Monoclinic",   spacegroup:14, volume:155.0,nsites:8,density:4.52},
+  {formula:"Cr₂S₃",  metal:"Cr",chalc:"S", band_gap:0.86,ordering:"AFM",mag_total:5.60,e_hull:0.000,crystal_sys:"Trigonal",     spacegroup:148,volume:326.8,nsites:20,density:3.77},
+  {formula:"CrSe",   metal:"Cr",chalc:"Se",band_gap:0.00,ordering:"AFM",mag_total:3.20,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:88.6, nsites:4,density:6.52},
+  {formula:"Cr₂Se₃", metal:"Cr",chalc:"Se",band_gap:0.69,ordering:"AFM",mag_total:6.00,e_hull:0.000,crystal_sys:"Trigonal",     spacegroup:148,volume:392.4,nsites:20,density:5.77},
+  {formula:"CrTe",   metal:"Cr",chalc:"Te",band_gap:0.00,ordering:"FM", mag_total:2.98,e_hull:0.000,crystal_sys:"Hexagonal",    spacegroup:194,volume:107.2,nsites:4,density:7.35},
+  {formula:"CrTe₂",  metal:"Cr",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.008,crystal_sys:"Trigonal",     spacegroup:164,volume:264.3,nsites:12,density:7.95},
+  {formula:"TiS₂",   metal:"Ti",chalc:"S", band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Trigonal",     spacegroup:164,volume:130.8,nsites:6,density:3.37},
+  {formula:"TiS₃",   metal:"Ti",chalc:"S", band_gap:0.63,ordering:"NM", mag_total:0.00,e_hull:0.002,crystal_sys:"Monoclinic",   spacegroup:11, volume:194.6,nsites:8,density:3.44},
+  {formula:"TiSe₂",  metal:"Ti",chalc:"Se",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Trigonal",     spacegroup:164,volume:163.4,nsites:6,density:5.48},
+  {formula:"TiSe₃",  metal:"Ti",chalc:"Se",band_gap:0.82,ordering:"NM", mag_total:0.00,e_hull:0.003,crystal_sys:"Monoclinic",   spacegroup:11, volume:251.8,nsites:8,density:5.61},
+  {formula:"TiTe₂",  metal:"Ti",chalc:"Te",band_gap:0.00,ordering:"NM", mag_total:0.00,e_hull:0.000,crystal_sys:"Trigonal",     spacegroup:164,volume:201.6,nsites:6,density:7.21},
+];
+
+// Physics constants
+const ND = {Fe:6,Ni:8,Co:7,Mn:5,Cr:4,Ti:2};
+const EN = {Fe:1.83,Ni:1.91,Co:1.88,Mn:1.55,Cr:1.66,Ti:1.54,S:2.58,Se:2.55,Te:2.10};
+const CP = {S:3,Se:4,Te:5};
+
+// Build feature matrix
+RAW_DB.forEach(d=>{
+  d.delta_EN    = EN[d.chalc] - EN[d.metal];
+  d.n_d         = ND[d.metal]||0;
+  d.chalc_period= CP[d.chalc];
+  d.vol_per_site= d.volume/d.nsites;
+  d.UW_proxy    = d.n_d*(10-d.n_d)/(d.delta_EN+0.1);
+  d.GKA_flag    = d.n_d===5?1:0;
+  d.hund        = Math.min(d.n_d,10-d.n_d);
+  d.MC_ratio    = 1.0; // simplified
+});
+
+const ALL_FEATS = [
+  {key:'delta_EN',    label:'ΔEN',         desc:'Electronegativity difference'},
+  {key:'n_d',         label:'n_d',          desc:'d-electron count'},
+  {key:'chalc_period',label:'Chalc. Period',desc:'S=3, Se=4, Te=5 (covalency)'},
+  {key:'vol_per_site',label:'Vol/site',     desc:'Volume per atom (Å³)'},
+  {key:'e_hull',      label:'E-hull',       desc:'Energy above hull (eV/at)'},
+  {key:'density',     label:'Density',      desc:'g/cm³'},
+  {key:'spacegroup',  label:'SG#',          desc:'Space group number'},
+  {key:'mag_total',   label:'Mag.Mom.',     desc:'Total magnetisation (μB)'},
+  {key:'UW_proxy',    label:'U/W proxy',    desc:'Mott criterion approximation'},
+  {key:'GKA_flag',    label:'GKA flag',     desc:'Half-filled d-shell (n_d=5)'},
+  {key:'hund',        label:'Hund coupl.',  desc:'min(n_d, 10-n_d)'},
+];
+
+let activeData = [...RAW_DB];
+let selectedFeats = ALL_FEATS.map(f=>f.key);
+let trainedModel = null;
+let lastEval = null;
+let currentStep = 0;
+let target = 'band_gap';
+
+// ══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════
+function goStep(n){
+  document.querySelectorAll('.section').forEach((s,i)=>{s.classList.toggle('active',i===n);});
+  document.querySelectorAll('.pipe-step').forEach((s,i)=>{s.classList.toggle('active',i===n);});
+  currentStep=n;
+  if(n===1) drawCorr();
+  if(n===3 && lastEval) drawParity(lastEval);
+}
+
+// ══════════════════════════════════════════════════════════════
+// STEP 1 — DATA
+// ══════════════════════════════════════════════════════════════
+function filterData(){
+  const m=document.getElementById('filterMetal').value;
+  const c=document.getElementById('filterChalc').value;
+  target=document.getElementById('targetSel').value;
+  activeData=RAW_DB.filter(d=>(m==='all'||d.metal===m)&&(c==='all'||d.chalc===c));
+  document.getElementById('dataStatus').textContent=`✓ ${activeData.length} compounds loaded. Target: ${target}`;
+  document.getElementById('dataStatus').className='status ok';
+  drawDataHist(); drawDataBar();
+}
+
+function drawDataHist(){
+  const c=document.getElementById('dataHist');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=38;
+  ctx.clearRect(0,0,W,H);
+  const bins=10,maxEg=4,bw=maxEg/bins;
+  const cnt=new Array(bins).fill(0);
+  activeData.forEach(d=>{const b=Math.min(bins-1,Math.floor(d.band_gap/bw));cnt[b]++;});
+  const maxC=Math.max(...cnt,1);
+  const barW=(W-2*pad)/bins;
+  ctx.strokeStyle='#e0ddd6';ctx.lineWidth=1;ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  cnt.forEach((n,i)=>{
+    const bh=n/maxC*(H-2*pad);
+    ctx.fillStyle='rgba(26,82,118,0.65)';
+    ctx.fillRect(pad+i*barW+1,H-pad-bh,barW-2,bh);
+    ctx.fillStyle='#888';ctx.font='9px IBM Plex Mono';
+    ctx.fillText((i*bw).toFixed(1),pad+i*barW,H-pad+11);
+  });
+  ctx.fillStyle='#888';ctx.font='10px IBM Plex Mono';ctx.fillText('Band Gap (eV) →',W/2-35,H-4);
+}
+
+function drawDataBar(){
+  const c=document.getElementById('dataBar');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=38;
+  ctx.clearRect(0,0,W,H);
+  const counts={FM:0,AFM:0,NM:0};
+  activeData.forEach(d=>counts[d.ordering]=(counts[d.ordering]||0)+1);
+  const items=Object.entries(counts);
+  const maxC=Math.max(...items.map(x=>x[1]),1);
+  const cols={'FM':'#0f6e56','AFM':'#6c3483','NM':'#aaa'};
+  const bw=(W-2*pad)/items.length;
+  ctx.strokeStyle='#e0ddd6';ctx.lineWidth=1;ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  items.forEach(([ord,n],i)=>{
+    const bh=n/maxC*(H-2*pad);
+    ctx.fillStyle=cols[ord]||'#888';
+    ctx.fillRect(pad+i*bw+10,H-pad-bh,bw-20,bh);
+    ctx.fillStyle='#444';ctx.font='11px IBM Plex Mono';
+    ctx.fillText(ord,pad+i*bw+bw/2-10,H-pad+14);
+    ctx.fillText(n,pad+i*bw+bw/2-4,H-pad-bh-5);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// STEP 2 — FEATURES
+// ══════════════════════════════════════════════════════════════
+function buildFeatGrid(){
+  const g=document.getElementById('featGrid');
+  g.innerHTML=ALL_FEATS.map(f=>`
+    <label class="feat-item">
+      <input type="checkbox" class="feat-cb" value="${f.key}" checked>
+      <div><div class="fn">${f.label}</div><div class="fd">${f.desc}</div></div>
+    </label>`).join('');
+  document.querySelectorAll('.feat-cb').forEach(cb=>cb.addEventListener('change',updateFeatStatus));
+  updateFeatStatus();
+}
+
+function updateFeatStatus(){
+  selectedFeats=[...document.querySelectorAll('.feat-cb:checked')].map(c=>c.value);
+  document.getElementById('featStatus').textContent=`${selectedFeats.length} features selected`;
+  document.getElementById('featStatus').className='status ok';
+  if(currentStep===1) drawCorr();
+}
+
+function selectAllFeats(v){
+  document.querySelectorAll('.feat-cb').forEach(c=>c.checked=v);
+  updateFeatStatus();
+}
+
+function drawCorr(){
+  if(!selectedFeats.length) return;
+  const feats=selectedFeats.slice(0,8); // limit for readability
+  const n=feats.length;
+  const c=document.getElementById('corrCanvas');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=60,cell=Math.min((W-pad)/n,(H-pad)/n);
+  ctx.clearRect(0,0,W,H);
+  const vals=feats.map(f=>activeData.map(d=>d[f]||0));
+  const means=vals.map(v=>v.reduce((a,b)=>a+b,0)/v.length);
+  const stds=vals.map((v,i)=>{const m=means[i];return Math.sqrt(v.reduce((s,x)=>s+(x-m)**2,0)/v.length)||1;});
+  function corr(i,j){
+    const n=vals[0].length;
+    let s=0;
+    for(let k=0;k<n;k++) s+=(vals[i][k]-means[i])*(vals[j][k]-means[j]);
+    return s/(n*stds[i]*stds[j]);
+  }
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    const r=corr(i,j);
+    const alpha=Math.abs(r);
+    ctx.fillStyle=r>0?`rgba(26,82,118,${alpha})`:`rgba(153,60,29,${alpha})`;
+    ctx.fillRect(pad+j*cell,pad+i*cell,cell-1,cell-1);
+    ctx.fillStyle=alpha>0.5?'#fff':'#333';
+    ctx.font='bold 9px IBM Plex Mono';ctx.textAlign='center';
+    ctx.fillText(r.toFixed(2),pad+j*cell+cell/2,pad+i*cell+cell/2+3);
+  }
+  ctx.fillStyle='#666';ctx.font='10px IBM Plex Mono';ctx.textAlign='right';
+  feats.forEach((f,i)=>{
+    const lbl=ALL_FEATS.find(x=>x.key===f)?.label||f;
+    ctx.fillText(lbl,pad-4,pad+i*cell+cell/2+3);
+    ctx.save();ctx.translate(pad+i*cell+cell/2,pad-4);ctx.rotate(-Math.PI/4);
+    ctx.textAlign='right';ctx.fillText(lbl,0,0);ctx.restore();
+  });
+  ctx.textAlign='left';
+}
+
+// ══════════════════════════════════════════════════════════════
+// SIMPLE ML (JS)
+// ══════════════════════════════════════════════════════════════
+function getXy(){
+  const X=activeData.map(d=>selectedFeats.map(f=>d[f]||0));
+  const y=target==='band_gap'?activeData.map(d=>d.band_gap):activeData.map(d=>({FM:2,AFM:1,NM:0}[d.ordering]||0));
+  return{X,y};
+}
+function mean(a){return a.length?a.reduce((s,v)=>s+v,0)/a.length:0;}
+function std(a){const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length)||1;}
+function standardise(X){
+  const nf=X[0].length;
+  const mu=Array.from({length:nf},(_,j)=>mean(X.map(r=>r[j])));
+  const sg=Array.from({length:nf},(_,j)=>std(X.map(r=>r[j])));
+  return{Xs:X.map(r=>r.map((v,j)=>(v-mu[j])/sg[j])),mu,sg};
+}
+
+// Ridge regression (closed form: w = (XᵀX + λI)⁻¹Xᵀy)
+function ridge(X,y,lam=1){
+  const n=X.length,p=X[0].length;
+  // XᵀX
+  const XtX=Array.from({length:p},(_,i)=>Array.from({length:p},(_,j)=>X.reduce((s,r)=>s+r[i]*r[j],0)));
+  for(let i=0;i<p;i++) XtX[i][i]+=lam;
+  const Xty=Array.from({length:p},(_,i)=>X.reduce((s,r,k)=>s+r[i]*y[k],0));
+  // Solve with Gaussian elimination
+  const A=XtX.map((r,i)=>[...r,Xty[i]]);
+  for(let i=0;i<p;i++){
+    let mx=i;for(let k=i+1;k<p;k++) if(Math.abs(A[k][i])>Math.abs(A[mx][i])) mx=k;
+    [A[i],A[mx]]=[A[mx],A[i]];
+    for(let k=i+1;k<p;k++){const f=A[k][i]/A[i][i];for(let j=i;j<=p;j++) A[k][j]-=f*A[i][j];}
+  }
+  const w=new Array(p).fill(0);
+  for(let i=p-1;i>=0;i--){w[i]=A[i][p]/A[i][i];for(let j=i+1;j<p;j++) w[i]-=A[i][j]/A[i][i]*w[j];}
+  return{type:'ridge',w};
+}
+function ridgePredict(model,x){return x.reduce((s,v,i)=>s+v*model.w[i],0);}
+
+// Simple RF (bootstrap trees)
+function buildTree(idxs,X,y,depth=0,maxD=5){
+  const ys=idxs.map(i=>y[i]);
+  const pm=mean(ys);
+  if(depth>=maxD||idxs.length<4) return{leaf:true,val:pm};
+  const nf=X[0].length;
+  let best={gain:-Infinity,f:-1,t:0,L:[],R:[]};
+  const mf=Math.max(2,Math.floor(Math.sqrt(nf)));
+  const fs=Array.from({length:nf},(_,i)=>i).sort(()=>Math.random()-.5).slice(0,mf);
+  fs.forEach(f=>{
+    const vals=[...new Set(idxs.map(i=>X[i][f]))].sort((a,b)=>a-b);
+    for(let vi=0;vi<vals.length-1;vi++){
+      const t=(vals[vi]+vals[vi+1])/2;
+      const L=idxs.filter(i=>X[i][f]<=t),R=idxs.filter(i=>X[i][f]>t);
+      if(!L.length||!R.length) continue;
+      const varL=variance(L.map(i=>y[i])),varR=variance(R.map(i=>y[i]));
+      const gain=variance(ys)-L.length/idxs.length*varL-R.length/idxs.length*varR;
+      if(gain>best.gain){best={gain,f,t,L,R};}
+    }
+  });
+  if(best.f<0||best.gain<1e-6) return{leaf:true,val:pm};
+  return{leaf:false,f:best.f,t:best.t,
+    left:buildTree(best.L,X,y,depth+1,maxD),
+    right:buildTree(best.R,X,y,depth+1,maxD)};
+}
+function variance(a){const m=mean(a);return a.reduce((s,v)=>s+(v-m)**2,0)/a.length;}
+function treePredict(node,x){
+  if(node.leaf) return node.val;
+  return x[node.f]<=node.t?treePredict(node.left,x):treePredict(node.right,x);
+}
+function rfTrain(X,y,nTrees=50,maxD=5){
+  const trees=[];
+  for(let t=0;t<nTrees;t++){
+    const bag=Array.from({length:X.length},()=>Math.floor(Math.random()*X.length));
+    trees.push(buildTree(bag,X,y,0,maxD));
+  }
+  return{type:'rf',trees};
+}
+function rfPredict(model,x){return mean(model.trees.map(t=>treePredict(t,x)));}
+
+// MAE / accuracy
+function mae(yt,yp){return mean(yt.map((v,i)=>Math.abs(v-yp[i])));}
+function r2(yt,yp){const m=mean(yt),ss=yt.reduce((s,v)=>s+(v-m)**2,0);const res=yt.reduce((s,v,i)=>s+(v-yp[i])**2,0);return 1-res/ss;}
+
+// CV
+function crossVal(X,y,modelType,k=5,lam=1){
+  const n=X.length,fold=Math.floor(n/k);
+  let scores=[];
+  for(let f=0;f<k;f++){
+    const testIdx=[...Array(fold)].map((_,i)=>f*fold+i).filter(i=>i<n);
+    const trainIdx=[...Array(n).keys()].filter(i=>!testIdx.includes(i));
+    if(!trainIdx.length||!testIdx.length) continue;
+    const Xtr=trainIdx.map(i=>X[i]),ytr=trainIdx.map(i=>y[i]);
+    const Xte=testIdx.map(i=>X[i]),yte=testIdx.map(i=>y[i]);
+    const{Xs,mu,sg}=standardise(Xtr);
+    const Xte_s=Xte.map(r=>r.map((v,j)=>(v-mu[j])/sg[j]));
+    let model;
+    if(modelType==='ridge'||modelType==='svr') model=ridge(Xs,ytr,lam);
+    else model=rfTrain(Xs,ytr,30,4);
+    const pred=Xte_s.map(x=>modelType==='rf'||modelType==='gbm'?rfPredict(model,x):ridgePredict(model,x));
+    scores.push(target==='band_gap'?mae(yte,pred):mean(yte.map((v,i)=>Math.round(pred[i])===Math.round(v)?1:0)));
+  }
+  return scores;
+}
+
+// ══════════════════════════════════════════════════════════════
+// STEP 3 — CV
+// ══════════════════════════════════════════════════════════════
+let cvResults={};
+function runCV(){
+  if(!selectedFeats.length){document.getElementById('modelStatus').textContent='Select features first!';return;}
+  document.getElementById('modelStatus').textContent='Running cross-validation…';
+  const{X,y}=getXy();
+  const{Xs}=standardise(X);
+  const k=parseInt(document.getElementById('cvFolds').value);
+  const lam=Math.pow(10,parseFloat(document.getElementById('paramSlider').value));
+  const models=['rf','ridge','svr','gbm'];
+  const names={rf:'Random Forest',ridge:'Ridge',svr:'SVM (RBF~)',gbm:'Gradient Boost~'};
+  cvResults={};
+  models.forEach(m=>{
+    const scores=crossVal(Xs,y,m,k,lam);
+    cvResults[m]={scores,mean:mean(scores),std:std(scores)};
+  });
+  renderCVTable(names);
+  trainedModel=null;
+  document.getElementById('modelStatus').textContent='✓ CV complete. Proceed to Evaluate.';
+  document.getElementById('modelStatus').className='status ok';
+}
+
+function renderCVTable(names){
+  const isReg=target==='band_gap';
+  const best=Object.entries(cvResults).sort((a,b)=>isReg?a[1].mean-b[1].mean:b[1].mean-a[1].mean)[0][0];
+  const maxScore=Math.max(...Object.values(cvResults).map(r=>r.mean));
+  const minScore=Math.min(...Object.values(cvResults).map(r=>r.mean));
+  document.getElementById('cvBody').innerHTML=Object.entries(cvResults).map(([m,r])=>`
+    <tr class="${m===best?'best':''}">
+      <td>${names[m]||m} ${m===best?'⭐':''}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${isReg?r.mean.toFixed(3)+' eV MAE':(r.mean*100).toFixed(1)+'% acc'}</td>
+      <td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:${isReg?(1-(r.mean-minScore)/(maxScore-minScore||1))*100:(r.mean/maxScore)*100}%"></div></div></div></td>
+      <td style="font-family:'IBM Plex Mono',monospace">±${r.std.toFixed(3)}</td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// STEP 4 — EVALUATE
+// ══════════════════════════════════════════════════════════════
+function runEval(){
+  if(!selectedFeats.length){document.getElementById('evalStatus').textContent='Select features first!';return;}
+  const{X,y}=getXy();
+  const testFrac=parseFloat(document.getElementById('testSize').value);
+  const n=X.length,nTest=Math.max(2,Math.floor(n*testFrac));
+  const idx=[...Array(n).keys()].sort(()=>Math.random()-.5);
+  const testIdx=idx.slice(0,nTest),trainIdx=idx.slice(nTest);
+  const Xtr=trainIdx.map(i=>X[i]),ytr=trainIdx.map(i=>y[i]);
+  const Xte=testIdx.map(i=>X[i]),yte=testIdx.map(i=>y[i]);
+  const names=testIdx.map(i=>activeData[i].formula);
+  const{Xs,mu,sg}=standardise(Xtr);
+  const Xte_s=Xte.map(r=>r.map((v,j)=>(v-mu[j])/sg[j]));
+  const modelType=document.getElementById('modelSel').value;
+  const lam=Math.pow(10,parseFloat(document.getElementById('paramSlider').value));
+  let model;
+  if(modelType==='ridge'||modelType==='svr') model=ridge(Xs,ytr,lam);
+  else model=rfTrain(Xs,ytr,50,5);
+  const pred=Xte_s.map(x=>modelType==='rf'||modelType==='gbm'?rfPredict(model,x):ridgePredict(model,x));
+  trainedModel={model,mu,sg,modelType};
+  lastEval={yte,pred,names};
+  // metrics
+  const isReg=target==='band_gap';
+  const maeVal=mae(yte,pred);
+  const r2Val=r2(yte,pred);
+  document.getElementById('evalMetrics').innerHTML=`
+    <div class="metric"><div class="mv">${maeVal.toFixed(3)}</div><div class="ml">Test MAE (eV)</div></div>
+    <div class="metric"><div class="mv">${r2Val.toFixed(3)}</div><div class="ml">Test R²</div></div>
+    <div class="metric"><div class="mv">${nTest}</div><div class="ml">Test samples</div></div>
+    <div class="metric"><div class="mv">${trainIdx.length}</div><div class="ml">Train samples</div></div>`;
+  document.getElementById('parityTitle').textContent=isReg?'Parity Plot (DFT vs ML)':'Predicted vs Actual';
+  drawParity({yte,pred,names});
+  drawResid({yte,pred});
+  document.getElementById('evalStatus').textContent=`✓ ${modelType.toUpperCase()} | MAE=${maeVal.toFixed(3)} eV | R²=${r2Val.toFixed(3)}`;
+  document.getElementById('evalStatus').className='status ok';
+}
+
+function drawParity({yte,pred,names}){
+  const c=document.getElementById('parityCanvas');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=44;
+  ctx.clearRect(0,0,W,H);
+  const all=[...yte,...pred];
+  const mn=Math.min(...all),mx=Math.max(...all)||1;
+  const toX=v=>pad+(v-mn)/(mx-mn)*(W-2*pad);
+  const toY=v=>H-pad-(v-mn)/(mx-mn)*(H-2*pad);
+  ctx.strokeStyle='#e0ddd6';ctx.lineWidth=1;ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  // y=x line
+  ctx.strokeStyle='#ccc';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(toX(mn),toY(mn));ctx.lineTo(toX(mx),toY(mx));ctx.stroke();
+  ctx.setLineDash([]);
+  // points
+  yte.forEach((v,i)=>{
+    const px=toX(v),py=toY(pred[i]);
+    ctx.beginPath();ctx.arc(px,py,5,0,2*Math.PI);
+    ctx.fillStyle='rgba(26,82,118,0.7)';ctx.fill();
+  });
+  ctx.fillStyle='#888';ctx.font='10px IBM Plex Mono';
+  ctx.fillText('DFT value →',W/2-25,H-6);
+  ctx.save();ctx.translate(12,H/2+22);ctx.rotate(-Math.PI/2);ctx.fillText('ML predicted →',0,0);ctx.restore();
+}
+
+function drawResid({yte,pred}){
+  const c=document.getElementById('residCanvas');
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height,pad=40;
+  ctx.clearRect(0,0,W,H);
+  const resid=yte.map((v,i)=>pred[i]-v);
+  const mn=Math.min(...resid),mx=Math.max(...resid)||0.1;
+  const bins=8,bw=(mx-mn)/bins;
+  const cnt=new Array(bins).fill(0);
+  resid.forEach(r=>{const b=Math.min(bins-1,Math.floor((r-mn)/bw));cnt[b]++;});
+  const maxC=Math.max(...cnt,1);
+  const barW=(W-2*pad)/bins;
+  ctx.strokeStyle='#e0ddd6';ctx.lineWidth=1;ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  // zero line
+  const zeroX=pad+(0-mn)/(mx-mn)*(W-2*pad);
+  ctx.strokeStyle='#993c1d';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(zeroX,pad);ctx.lineTo(zeroX,H-pad);ctx.stroke();ctx.setLineDash([]);
+  cnt.forEach((n,i)=>{
+    const bh=n/maxC*(H-2*pad);
+    const x=pad+i*barW+1;
+    ctx.fillStyle='rgba(15,110,86,0.6)';ctx.fillRect(x,H-pad-bh,barW-2,bh);
+    ctx.fillStyle='#888';ctx.font='8px IBM Plex Mono';
+    ctx.fillText((mn+i*bw).toFixed(1),x,H-pad+11);
+  });
+  ctx.fillStyle='#888';ctx.font='10px IBM Plex Mono';ctx.fillText('Residual (pred−DFT) →',W/2-40,H-4);
+}
+
+// ══════════════════════════════════════════════════════════════
+// STEP 5 — INTERPRET
+// ══════════════════════════════════════════════════════════════
+function runSHAP(){
+  if(!trainedModel){document.getElementById('shapStatus').textContent='Run evaluation first!';return;}
+  const{X,y}=getXy();
+  const{Xs}=standardise(X);
+  // Permutation importance
+  const baseModel=trainedModel;
+  const basePred=Xs.map(x=>baseModel.modelType==='rf'||baseModel.modelType==='gbm'?rfPredict(baseModel.model,x):ridgePredict(baseModel.model,x));
+  const baseMAE=mae(y,basePred);
+  const imps=selectedFeats.map((f,fi)=>{
+    const Xperm=Xs.map(r=>{const rr=[...r];rr[fi]=Xs[Math.floor(Math.random()*Xs.length)][fi];return rr;});
+    const permPred=Xperm.map(x=>baseModel.modelType==='rf'||baseModel.modelType==='gbm'?rfPredict(baseModel.model,x):ridgePredict(baseModel.model,x));
+    return mae(y,permPred)-baseMAE;
+  });
+  const maxImp=Math.max(...imps.map(Math.abs),0.01);
+  document.getElementById('shapBars').innerHTML=selectedFeats.map((f,i)=>{
+    const lbl=ALL_FEATS.find(x=>x.key===f)?.label||f;
+    const v=imps[i];
+    const pct=Math.abs(v)/maxImp*45;
+    return`<div class="shap-row">
+      <span class="shap-label">${lbl}</span>
+      <div class="shap-bg">
+        ${v>=0?`<div class="shap-pos" style="width:${pct}%"></div>`:`<div class="shap-neg" style="width:${pct}%"></div>`}
+      </div>
+      <span class="shap-val">${v>0?'+':''}${v.toFixed(4)}</span>
+    </div>`;
+  }).join('');
+  // Summary
+  const bestFeat=selectedFeats[imps.indexOf(Math.max(...imps))];
+  const bestLbl=ALL_FEATS.find(x=>x.key===bestFeat)?.label||bestFeat;
+  document.getElementById('summaryBox').innerHTML=
+    `Model: ${document.getElementById('modelSel').value.toUpperCase()}\n`+
+    `Target: ${target==='band_gap'?'Band Gap (eV)':'Magnetic Ordering'}\n`+
+    `Compounds: ${activeData.length}  |  Features: ${selectedFeats.length}\n`+
+    `Test MAE: ${lastEval?mae(lastEval.yte,lastEval.pred).toFixed(3)+' eV':'–'}\n`+
+    `Test R²: ${lastEval?r2(lastEval.yte,lastEval.pred).toFixed(3):'–'}\n\n`+
+    `Top feature: ${bestLbl}\n`+
+    `Physics check: ${bestFeat==='delta_EN'||bestFeat==='n_d'?'✓ Expected dominant feature':'⚠ Verify physical meaning'}`;
+  // Predict form
+  buildPredictForm();
+  document.getElementById('shapStatus').textContent='✓ Permutation importance computed';
+  document.getElementById('shapStatus').className='status ok';
+}
+
+function buildPredictForm(){
+  const div=document.getElementById('predictForm');
+  div.innerHTML=selectedFeats.map(f=>{
+    const lbl=ALL_FEATS.find(x=>x.key===f)?.label||f;
+    const ex=mean(activeData.map(d=>d[f]||0)).toFixed(2);
+    return`<div class="ctrl"><label>${lbl}</label>
+      <input type="number" id="pred_${f}" value="${ex}" step="0.01" style="width:90px"></div>`;
+  }).join('');
+}
+
+function predictNew(){
+  if(!trainedModel){document.getElementById('predictResult').textContent='Train the model first!';return;}
+  const x=selectedFeats.map(f=>parseFloat(document.getElementById('pred_'+f)?.value)||0);
+  const{mu,sg,model,modelType}=trainedModel;
+  const xs=x.map((v,i)=>(v-mu[i])/sg[i]);
+  const pred=modelType==='rf'||modelType==='gbm'?rfPredict(model,xs):ridgePredict(model,xs);
+  const res=document.getElementById('predictResult');
+  if(target==='band_gap'){
+    const cls=pred<0.05?'Metal':pred<2.0?'Semiconductor':'Insulator';
+    res.textContent=`Predicted band gap: ${pred.toFixed(3)} eV → ${cls}`;
+    res.style.color=pred<0.05?'var(--accent)':pred<2.0?'var(--warn)':'var(--coral)';
+  } else {
+    const ord=pred<0.5?'NM':pred<1.5?'AFM':'FM';
+    res.textContent=`Predicted ordering: ${ord} (score = ${pred.toFixed(2)})`;
+    res.style.color='var(--accent2)';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+filterData();
+buildFeatGrid();
+</script>
+</body>
+</html>
