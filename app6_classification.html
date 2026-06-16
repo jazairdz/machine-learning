@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App 6 — Classification Explorer: Metal vs Insulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&family=Playfair+Display:wght@700&display=swap');
+  :root {
+    --bg:#ffffff; --surface:#f7f6f2; --border:#e0ddd6;
+    --accent:#1a5276; --accent2:#0f6e56; --warn:#854f0b;
+    --text:#0d0d0d; --muted:#444444; --heading:#000000;
+    --code-bg:#f0ede4; --tag-bg:#d4e6f1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif; font-size:15px; line-height:1.6;
+    padding:24px 16px 60px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 {
+    font-family:'Playfair Display', serif; font-size: clamp(22px,4vw,32px);
+    margin: 0 0 6px;
+  }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--surface); border:1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .panel h2 {
+    font-size: 13px; font-family:'IBM Plex Mono', monospace; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--accent); margin: 0 0 14px; font-weight:600;
+  }
+  .slider-row { margin-bottom: 16px; }
+  .slider-row label {
+    display:flex; justify-content: space-between; font-size: 13px;
+    font-family:'IBM Plex Mono', monospace; margin-bottom: 6px; color: var(--text);
+  }
+  .slider-row label span.val { color: var(--accent); font-weight: 600; }
+  input[type=range] { width: 100%; }
+  canvas { width: 100%; height: auto; display:block; background:#fff; border:1px solid var(--border); border-radius:8px; }
+  .btn {
+    background: var(--accent); color:#fff; border:none; border-radius:8px;
+    padding: 10px 18px; font-family:'IBM Plex Sans', sans-serif; font-weight:600;
+    font-size: 14px; cursor: pointer; margin-top: 6px;
+  }
+  .btn:hover { background: var(--accent2); }
+  table { width:100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align:center; }
+  th { background: var(--code-bg); font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.06em; }
+  .metrics { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:14px; }
+  .metric { background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
+  .metric .mval { font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; color:var(--accent); }
+  .metric .mlbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:4px; }
+  .legend { display:flex; gap:16px; font-size:12px; color:var(--muted); margin-top:8px; flex-wrap:wrap; }
+  .legend span.dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 6 — Classification Explorer</h1>
+  <p class="sub">Metal (E<sub>g</sub> = 0) vs. Insulator (E<sub>g</sub> &gt; 0) · companion to Post 6 · adjust θ₀, θ₁, θ₂ or click "Auto-fit"</p>
+
+  <div class="grid">
+
+    <div class="panel">
+      <h2>Model Parameters</h2>
+      <div class="slider-row">
+        <label>θ₀ (bias) <span class="val" id="t0v">0.00</span></label>
+        <input type="range" id="t0" min="-5" max="5" step="0.05" value="0">
+      </div>
+      <div class="slider-row">
+        <label>θ₁ (ΔEN weight) <span class="val" id="t1v">0.00</span></label>
+        <input type="range" id="t1" min="-5" max="5" step="0.05" value="0">
+      </div>
+      <div class="slider-row">
+        <label>θ₂ (n<sub>d</sub> weight) <span class="val" id="t2v">0.00</span></label>
+        <input type="range" id="t2" min="-2" max="2" step="0.02" value="0">
+      </div>
+      <button class="btn" id="autofit">⚙️ Auto-fit with gradient descent</button>
+
+      <h2 style="margin-top:22px">Decision Boundary (ΔEN vs n<sub>d</sub>)</h2>
+      <canvas id="scatter" width="440" height="380"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:#1a5276"></span>Metal (true)</span>
+        <span><span class="dot" style="background:#0f6e56"></span>Insulator (true)</span>
+        <span><span class="dot" style="background:#854f0b;opacity:.5"></span>Misclassified ring</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Sigmoid Output P(metal | x)</h2>
+      <canvas id="sigmoid" width="440" height="380"></canvas>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">Each point plotted at z = θ₀+θ₁ΔEN+θ₂n<sub>d</sub> vs σ(z). Dashed line = 0.5 threshold.</p>
+
+      <h2 style="margin-top:22px">Confusion Matrix &amp; Metrics</h2>
+      <table>
+        <thead><tr><th></th><th>Pred: Metal</th><th>Pred: Insulator</th></tr></thead>
+        <tbody>
+          <tr><th>Actual: Metal</th><td id="tp">–</td><td id="fn">–</td></tr>
+          <tr><th>Actual: Insulator</th><td id="fp">–</td><td id="tn">–</td></tr>
+        </tbody>
+      </table>
+      <div class="metrics">
+        <div class="metric"><div class="mval" id="acc">–</div><div class="mlbl">Accuracy</div></div>
+        <div class="metric"><div class="mval" id="prec">–</div><div class="mlbl">Precision</div></div>
+        <div class="metric"><div class="mval" id="rec">–</div><div class="mlbl">Recall</div></div>
+        <div class="metric"><div class="mval" id="f1">–</div><div class="mlbl">F1 score</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Data: [ΔEN, n_d], label (1=metal, 0=insulator), name
+const data = [
+  {x:0.43, y:6,  label:1, name:'FeS'},
+  {x:0.43, y:6,  label:0, name:'FeS₂'},
+  {x:1.40, y:8,  label:0, name:'NiO'},
+  {x:0.43, y:8,  label:1, name:'NiS'},
+  {x:0.61, y:5,  label:0, name:'MnTe'},
+  {x:0.93, y:5,  label:0, name:'MnS'},
+  {x:1.54, y:2,  label:1, name:'CrO₂'},
+  {x:1.54, y:3,  label:0, name:'Cr₂O₃'},
+  {x:1.40, y:7,  label:0, name:'CoO'},
+  {x:0.43, y:7,  label:1, name:'CoS₂'},
+  {x:1.54, y:2,  label:1, name:'TiO'},
+  {x:1.54, y:0,  label:0, name:'TiO₂'}
+];
+
+const xMin=0, xMax=2, yMin=-1, yMax=9; // ΔEN, n_d ranges with margin
+
+function sigmoid(z){ return 1/(1+Math.exp(-z)); }
+
+const t0 = document.getElementById('t0');
+const t1 = document.getElementById('t1');
+const t2 = document.getElementById('t2');
+
+function getTheta(){
+  return [parseFloat(t0.value), parseFloat(t1.value), parseFloat(t2.value)];
+}
+
+function drawScatter(){
+  const c = document.getElementById('scatter');
+  const ctx = c.getContext('2d');
+  const W=c.width, H=c.height, pad=40;
+  ctx.clearRect(0,0,W,H);
+  const sx = x => pad + (x-xMin)/(xMax-xMin)*(W-2*pad);
+  const sy = y => H-pad - (y-yMin)/(yMax-yMin)*(H-2*pad);
+
+  // axes
+  ctx.strokeStyle = '#e0ddd6'; ctx.lineWidth=1;
+  ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle = '#444'; ctx.font='11px IBM Plex Mono';
+  ctx.fillText('ΔEN →', W/2-15, H-10);
+  ctx.save(); ctx.translate(12,H/2+20); ctx.rotate(-Math.PI/2); ctx.fillText('n_d →',0,0); ctx.restore();
+
+  const [a,b,d] = getTheta();
+  // decision boundary: a + b*ΔEN + d*n_d = 0  => n_d = -(a+b*ΔEN)/d
+  ctx.strokeStyle = '#854f0b'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+  ctx.beginPath();
+  let started=false;
+  for(let xv=xMin; xv<=xMax; xv+=0.01){
+    if(Math.abs(d) < 1e-6) break;
+    const yv = -(a + b*xv)/d;
+    if(yv<yMin-1 || yv>yMax+1) continue;
+    const px=sx(xv), py=sy(yv);
+    if(!started){ ctx.moveTo(px,py); started=true; } else ctx.lineTo(px,py);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // points
+  data.forEach(pt=>{
+    const z = a + b*pt.x + d*pt.y;
+    const p = sigmoid(z);
+    const pred = p>=0.5?1:0;
+    const px=sx(pt.x), py=sy(pt.y);
+    ctx.beginPath();
+    ctx.arc(px,py,6,0,2*Math.PI);
+    ctx.fillStyle = pt.label===1 ? '#1a5276' : '#0f6e56';
+    ctx.fill();
+    if(pred !== pt.label){
+      ctx.beginPath(); ctx.arc(px,py,9,0,2*Math.PI);
+      ctx.strokeStyle='#854f0b'; ctx.lineWidth=2; ctx.stroke();
+    }
+  });
+}
+
+function drawSigmoid(){
+  const c = document.getElementById('sigmoid');
+  const ctx = c.getContext('2d');
+  const W=c.width, H=c.height, pad=40;
+  ctx.clearRect(0,0,W,H);
+  const zMin=-8, zMax=8;
+  const sx = z => pad + (z-zMin)/(zMax-zMin)*(W-2*pad);
+  const sy = p => H-pad - p*(H-2*pad);
+
+  ctx.strokeStyle = '#e0ddd6'; ctx.lineWidth=1;
+  ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  ctx.fillStyle = '#444'; ctx.font='11px IBM Plex Mono';
+  ctx.fillText('z = θ₀+θ₁ΔEN+θ₂n_d →', W/2-70, H-10);
+  ctx.save(); ctx.translate(12,H/2+30); ctx.rotate(-Math.PI/2); ctx.fillText('P(metal)',0,0); ctx.restore();
+
+  // 0.5 line
+  ctx.strokeStyle='#854f0b'; ctx.setLineDash([6,4]); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pad, sy(0.5)); ctx.lineTo(W-pad, sy(0.5)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // sigmoid curve
+  ctx.strokeStyle='#1a5276'; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let z=zMin; z<=zMax; z+=0.1){
+    const px=sx(z), py=sy(sigmoid(z));
+    if(z===zMin) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+
+  const [a,b,d] = getTheta();
+  data.forEach(pt=>{
+    const z = a + b*pt.x + d*pt.y;
+    const p = sigmoid(z);
+    const px=sx(Math.max(zMin,Math.min(zMax,z))), py=sy(p);
+    ctx.beginPath(); ctx.arc(px,py,5,0,2*Math.PI);
+    ctx.fillStyle = pt.label===1 ? '#1a5276' : '#0f6e56';
+    ctx.fill();
+  });
+}
+
+function updateMetrics(){
+  const [a,b,d] = getTheta();
+  let tp=0,fp=0,tn=0,fn=0;
+  data.forEach(pt=>{
+    const z = a + b*pt.x + d*pt.y;
+    const pred = sigmoid(z)>=0.5?1:0;
+    if(pt.label===1 && pred===1) tp++;
+    else if(pt.label===0 && pred===1) fp++;
+    else if(pt.label===0 && pred===0) tn++;
+    else fn++;
+  });
+  document.getElementById('tp').textContent=tp;
+  document.getElementById('fp').textContent=fp;
+  document.getElementById('tn').textContent=tn;
+  document.getElementById('fn').textContent=fn;
+  const acc=(tp+tn)/data.length;
+  const prec= (tp+fp)>0 ? tp/(tp+fp) : 0;
+  const rec = (tp+fn)>0 ? tp/(tp+fn) : 0;
+  const f1 = (prec+rec)>0 ? 2*prec*rec/(prec+rec) : 0;
+  document.getElementById('acc').textContent=acc.toFixed(2);
+  document.getElementById('prec').textContent=prec.toFixed(2);
+  document.getElementById('rec').textContent=rec.toFixed(2);
+  document.getElementById('f1').textContent=f1.toFixed(2);
+}
+
+function render(){
+  document.getElementById('t0v').textContent=parseFloat(t0.value).toFixed(2);
+  document.getElementById('t1v').textContent=parseFloat(t1.value).toFixed(2);
+  document.getElementById('t2v').textContent=parseFloat(t2.value).toFixed(2);
+  drawScatter();
+  drawSigmoid();
+  updateMetrics();
+}
+
+[t0,t1,t2].forEach(el=>el.addEventListener('input', render));
+
+document.getElementById('autofit').addEventListener('click', ()=>{
+  // standardise features
+  const xs = data.map(p=>p.x), ys = data.map(p=>p.y);
+  const mean = arr => arr.reduce((s,v)=>s+v,0)/arr.length;
+  const std = arr => Math.sqrt(arr.reduce((s,v)=>s+(v-mean(arr))**2,0)/arr.length);
+  const mx=mean(xs), sx_=std(xs), my=mean(ys), sy_=std(ys);
+  let theta=[0,0,0];
+  const eta=0.5, iters=3000;
+  for(let it=0; it<iters; it++){
+    let g=[0,0,0];
+    data.forEach(pt=>{
+      const xn=(pt.x-mx)/sx_, yn=(pt.y-my)/sy_;
+      const z = theta[0]+theta[1]*xn+theta[2]*yn;
+      const err = sigmoid(z)-pt.label;
+      g[0]+=err; g[1]+=err*xn; g[2]+=err*yn;
+    });
+    theta = theta.map((v,i)=> v - eta*g[i]/data.length);
+  }
+  // convert standardised theta back to raw-feature theta
+  const rawT1 = theta[1]/sx_;
+  const rawT2 = theta[2]/sy_;
+  const rawT0 = theta[0] - theta[1]*mx/sx_ - theta[2]*my/sy_;
+  t0.value = Math.max(-5,Math.min(5, rawT0)).toFixed(2);
+  t1.value = Math.max(-5,Math.min(5, rawT1)).toFixed(2);
+  t2.value = Math.max(-2,Math.min(2, rawT2)).toFixed(2);
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
