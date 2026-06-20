@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 17 — Invariance vs Equivariance Visualiser</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1000px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px;}
+
+  .slider-row{display:flex;align-items:center;gap:14px;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;}
+  .slider-row label{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);min-width:110px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--accent);}
+  .slider-row .val{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--accent);min-width:56px;text-align:right;}
+  .play-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:600;}
+  .play-btn:hover{background:var(--accent2);}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .panel h2{font-size:11px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:10px;font-weight:600;}
+  svg{width:100%;height:280px;background:#fff;border:1px solid var(--border);border-radius:8px;display:block;}
+
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .metric{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .metric .ml{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-family:'IBM Plex Mono',monospace;margin-bottom:4px;}
+  .metric .mv{font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent);}
+  .metric.inv .mv{color:var(--accent2);}
+  .metric.eq .mv{color:var(--purple);}
+  .metric .mn{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap;}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 17 — Invariance vs Equivariance</h1>
+  <p class="sub">Rotate the molecule and watch which features stay fixed (invariant) and which rotate along with it (equivariant)</p>
+
+  <div class="slider-row">
+    <label>Rotation angle <span class="val" id="angleVal">0°</span></label>
+    <input type="range" id="angleSlider" min="0" max="360" value="0" step="1">
+    <button class="play-btn" id="playBtn">▶ Auto-rotate</button>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Rotating molecule (3 atoms)</h2>
+      <svg viewBox="0 0 240 240">
+        <line id="bond1" x1="120" y1="120" x2="120" y2="60" stroke="#cfcac0" stroke-width="3"></line>
+        <line id="bond2" x1="120" y1="120" x2="170" y2="150" stroke="#cfcac0" stroke-width="3"></line>
+        <circle cx="120" cy="120" r="11" fill="#888780"></circle>
+        <circle id="atomA" cx="120" cy="60" r="10" fill="#6c3483"></circle>
+        <circle id="atomB" cx="170" cy="150" r="10" fill="#993c1d"></circle>
+      </svg>
+      <div class="legend">
+        <span><span class="dot" style="background:#888780"></span>Central atom</span>
+        <span><span class="dot" style="background:#6c3483"></span>Atom A</span>
+        <span><span class="dot" style="background:#993c1d"></span>Atom B</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Force vector on atom A</h2>
+      <svg viewBox="0 0 240 240">
+        <defs>
+          <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 Z" fill="#0f6e56"></path>
+          </marker>
+        </defs>
+        <circle cx="120" cy="120" r="4" fill="#888780"></circle>
+        <line id="forceVec" x1="120" y1="120" x2="120" y2="60" stroke="#0f6e56" stroke-width="3.5" marker-end="url(#arrowhead)"></line>
+      </svg>
+      <div class="legend">
+        <span><span class="dot" style="background:#0f6e56"></span>Force vector — rotates with the crystal</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric inv">
+      <div class="ml">Invariant feature — distance (SchNet sees this)</div>
+      <div class="mv" id="distOut">60.0</div>
+      <div class="mn">Distance from center to atom A. Never changes as the molecule rotates — this is all a purely invariant network like SchNet has access to.</div>
+    </div>
+    <div class="metric eq">
+      <div class="ml">Equivariant feature — direction (MACE keeps this)</div>
+      <div class="mv" id="dirOut">0°</div>
+      <div class="mn">Bond direction angle. Changes exactly in step with the rotation — equivariant networks like MACE represent this directly via spherical harmonics.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var angleSlider = document.getElementById('angleSlider');
+var angleVal = document.getElementById('angleVal');
+var atomA = document.getElementById('atomA');
+var atomB = document.getElementById('atomB');
+var bond1 = document.getElementById('bond1');
+var bond2 = document.getElementById('bond2');
+var forceVec = document.getElementById('forceVec');
+var distOut = document.getElementById('distOut');
+var dirOut = document.getElementById('dirOut');
+var playBtn = document.getElementById('playBtn');
+
+var cx = 120, cy = 120;
+var rA = 60, baseA = -90;
+var rB = Math.sqrt(50*50 + 30*30), baseB = Math.atan2(30, 50) * 180 / Math.PI;
+
+function update(){
+  var deg = parseFloat(angleSlider.value);
+  angleVal.textContent = Math.round(deg) + '°';
+
+  var radA = (baseA + deg) * Math.PI / 180;
+  var ax = cx + rA * Math.cos(radA);
+  var ay = cy + rA * Math.sin(radA);
+  atomA.setAttribute('cx', ax.toFixed(2));
+  atomA.setAttribute('cy', ay.toFixed(2));
+  bond1.setAttribute('x2', ax.toFixed(2));
+  bond1.setAttribute('y2', ay.toFixed(2));
+
+  var radB = (baseB + deg) * Math.PI / 180;
+  var bx = cx + rB * Math.cos(radB);
+  var by = cy + rB * Math.sin(radB);
+  atomB.setAttribute('cx', bx.toFixed(2));
+  atomB.setAttribute('cy', by.toFixed(2));
+  bond2.setAttribute('x2', bx.toFixed(2));
+  bond2.setAttribute('y2', by.toFixed(2));
+
+  forceVec.setAttribute('x2', ax.toFixed(2));
+  forceVec.setAttribute('y2', ay.toFixed(2));
+
+  var dist = Math.sqrt(Math.pow(ax-cx,2) + Math.pow(ay-cy,2));
+  distOut.textContent = dist.toFixed(1);
+
+  var dirDeg = ((90 + deg) % 360 + 360) % 360;
+  dirOut.textContent = Math.round(dirDeg) + '°';
+}
+
+angleSlider.addEventListener('input', update);
+
+var playing = false, rafId = null, startTime = null, startAngle = 0;
+function step(ts){
+  if(!startTime) startTime = ts;
+  var elapsed = ts - startTime;
+  var deg = (startAngle + elapsed * 0.06) % 360;
+  angleSlider.value = deg;
+  update();
+  if(playing) rafId = requestAnimationFrame(step);
+}
+playBtn.addEventListener('click', function(){
+  playing = !playing;
+  if(playing){
+    playBtn.textContent = '⏸ Pause';
+    startTime = null;
+    startAngle = parseFloat(angleSlider.value);
+    rafId = requestAnimationFrame(step);
+  } else {
+    playBtn.textContent = '▶ Auto-rotate';
+    if(rafId) cancelAnimationFrame(rafId);
+  }
+});
+
+update();
+</script>
+</body>
+</html>
