@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 16 — AI Hierarchy Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px;}
+
+  .main{display:grid;grid-template-columns:340px 1fr;gap:18px;}
+  @media(max-width:820px){.main{grid-template-columns:1fr;}}
+
+  /* Ladder */
+  .ladder{display:flex;flex-direction:column-reverse;gap:6px;}
+  .rung{
+    border:2px solid var(--border); border-radius:10px; padding:12px 14px;
+    cursor:pointer; transition:all .2s; background:var(--surface);
+    position:relative;
+  }
+  .rung:hover{border-color:var(--accent); transform:translateX(4px);}
+  .rung.active{border-color:var(--accent); background:var(--tag-bg); transform:translateX(6px);}
+  .rung .rn{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  .rung .rt{font-weight:600;font-size:14px;color:var(--heading);margin-top:2px;}
+  .rung .ry{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);margin-top:2px;}
+  .rung-connector{ text-align:center; color:var(--muted); font-size:14px; }
+
+  /* Detail panel */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;}
+  .panel h2{font-family:'Playfair Display',serif;font-size:20px;margin-bottom:4px;color:var(--heading);}
+  .panel .year-badge{display:inline-block;background:var(--tag-bg);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 10px;border-radius:12px;margin-bottom:12px;}
+  .panel .desc{font-size:14px;line-height:1.7;margin-bottom:16px;}
+  .eq-box{background:#fff;border-left:3px solid var(--purple);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);}
+  .eq-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--purple);margin-bottom:6px;}
+
+  .pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;}
+  .pc-box{border-radius:8px;padding:10px 12px;font-size:12.5px;}
+  .pc-box.pro{background:#e1f5ee;}
+  .pc-box.con{background:#faece7;}
+  .pc-box .pc-title{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .pc-box.pro .pc-title{color:var(--accent2);}
+  .pc-box.con .pc-title{color:var(--coral);}
+  .pc-box ul{padding-left:16px;}
+  .pc-box li{margin:3px 0;}
+
+  /* Speed/accuracy bars */
+  .metrics-row{display:flex;gap:16px;margin-top:16px;}
+  .metric-bar{flex:1;}
+  .metric-bar .ml{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+  .metric-bar .mb-bg{background:var(--border);border-radius:4px;height:10px;}
+  .metric-bar .mb-fill{height:10px;border-radius:4px;background:var(--accent);transition:width .3s;}
+
+  .nav-btns{display:flex;justify-content:space-between;margin-top:18px;}
+  .nbtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .nbtn:hover{background:var(--accent2);}
+  .nbtn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 16 — AI Hierarchy Explorer</h1>
+  <p class="sub">Climb the seven rungs from classical force fields to generative materials design — click a rung to explore</p>
+
+  <div class="main">
+    <div>
+      <div class="ladder" id="ladder"></div>
+    </div>
+    <div class="panel" id="detailPanel"></div>
+  </div>
+</div>
+
+<script>
+const RUNGS = [
+  {
+    id:0, year:'1980s–', name:'Classical Force Fields',
+    desc:'Total energy is a fixed analytic sum of bond, angle, torsion, and non-bonded terms. Parameters fitted once, reused for any new configuration of the same atom types.',
+    eq:'E = Σ k_b(r−r₀)² + Σ k_θ(θ−θ₀)² + Σ 4ε[(σ/r)¹²−(σ/r)⁶]',
+    pros:['Extremely fast — millions of atoms','Decades of validated parameters (AMBER, ReaxFF)','Well understood, transferable in-family'],
+    cons:['Cannot capture bond breaking/forming','No electronic structure → no magnetism','TM variable oxidation states poorly described'],
+    speed:95, accuracy:25,
+  },
+  {
+    id:1, year:'2010s', name:'ML Potentials: GAP / SNAP',
+    desc:'Hand-built rotation-invariant descriptors of local atomic environments, fed into a flexible regressor (Gaussian Process for GAP, polynomial for SNAP) instead of a fixed functional form.',
+    eq:'E_i = GPR(descriptor(local environment of atom i))',
+    pros:['Flexible — learns from reference data','Guarantees physical symmetries by construction','Better than classical FF for new chemistries'],
+    cons:['Descriptor is still hand-designed','Feature-engineering bottleneck','Limited by chosen descriptor information content'],
+    speed:75, accuracy:55,
+  },
+  {
+    id:2, year:'2007–2017', name:'Neural Network Potentials',
+    desc:'Behler-Parrinello (2007): sum of per-atom NNs over hand-crafted symmetry functions. SchNet (2017): replaced symmetry functions with learnable continuous-filter convolutions — still invariant, distance-only.',
+    eq:'E_total = Σᵢ Eᵢ(Gᵢ)   — sum of per-atom contributions',
+    pros:['Learns its own descriptors end-to-end (SchNet)','Permutation invariant + size extensive by design','Backbone of every later architecture'],
+    cons:['Distance-only → no explicit bond direction','Needs more data to learn forces indirectly','Less data-efficient than equivariant successors'],
+    speed:60, accuracy:65,
+  },
+  {
+    id:3, year:'2021–2022', name:'Equivariant Neural Networks',
+    desc:'NequIP and MACE pass vector/tensor features (spherical harmonics of bond direction) through the network, not just distances — internal features rotate correctly when the crystal rotates.',
+    eq:'h_i^(t+1) = h_i^(t) ⊕ Σⱼ Yˡ(r̂ᵢⱼ) ⊗ h_j^(t)   — equivariant message passing',
+    pros:['Far better force accuracy than invariant nets','10–100× more data-efficient (NequIP result)','Naturally suits directional d-orbital physics'],
+    cons:['Higher compute cost per training step','Tensor products are mathematically involved','Requires understanding of E(3) symmetry'],
+    speed:45, accuracy:85,
+  },
+  {
+    id:4, year:'2023–2024', name:'Foundation Models',
+    desc:'MACE-MP-0 and CHGNet train one equivariant network on the entire Materials Project relaxation trajectory database — applicable zero-shot to almost any inorganic crystal.',
+    eq:'One model, trained once, applied to any new composition — no per-system training',
+    pros:['Zero-shot — no training data needed to start','Near-DFT accuracy for most inorganics immediately','Recommended starting point for new systems'],
+    cons:['Less reliable for rare/strongly correlated chemistry','Magnetic ordering energetics can be imprecise','Still benefits from fine-tuning for hard cases'],
+    speed:70, accuracy:80,
+  },
+  {
+    id:5, year:'ongoing', name:'Active Learning',
+    desc:'The model flags configurations where its own uncertainty is highest (e.g. ensemble disagreement) and requests new DFT calculations only there — building an accurate, minimal training set.',
+    eq:'uncertainty(x) = std{ M₁(x), M₂(x), …, Mₖ(x) }   — ensemble disagreement',
+    pros:['Minimises expensive DFT calculation budget','Targets exactly the configurations that matter','Ideal for extending coverage to new MₓCᵧ systems'],
+    cons:['Requires running an ensemble of models','Adds workflow complexity','Needs careful uncertainty calibration'],
+    speed:50, accuracy:90,
+  },
+  {
+    id:6, year:'frontier', name:'Differentiable Sim & Generative AI',
+    desc:'Backpropagate through an entire MD trajectory, or use diffusion models to generate candidate crystal structures directly — gradient-based materials design instead of exhaustive screening.',
+    eq:'∂(target property)/∂(composition or structure)   — direct gradient-based design',
+    pros:['Optimise composition/structure directly','Can discover non-obvious candidate materials','Active, fast-moving research frontier'],
+    cons:['Still experimental for most property targets','Requires differentiable property predictors','Validation against DFT is essential'],
+    speed:30, accuracy:60,
+  },
+];
+
+let active = 0;
+
+function renderLadder(){
+  const ladder = document.getElementById('ladder');
+  ladder.innerHTML = '';
+  RUNGS.forEach((r,i)=>{
+    const div = document.createElement('div');
+    div.className = 'rung' + (i===active?' active':'');
+    div.innerHTML = `<div class="rn">Rung ${i+1}</div><div class="rt">${r.name}</div><div class="ry">${r.year}</div>`;
+    div.addEventListener('click', ()=>{ active=i; render(); });
+    ladder.appendChild(div);
+  });
+}
+
+function renderDetail(){
+  const r = RUNGS[active];
+  const panel = document.getElementById('detailPanel');
+  panel.innerHTML = `
+    <span class="year-badge">${r.year}</span>
+    <h2>${r.name}</h2>
+    <p class="desc">${r.desc}</p>
+    <div class="eq-box">
+      <div class="eq-label">Core idea</div>
+      ${r.eq}
+    </div>
+    <div class="pros-cons">
+      <div class="pc-box pro">
+        <div class="pc-title">Strengths</div>
+        <ul>${r.pros.map(p=>`<li>${p}</li>`).join('')}</ul>
+      </div>
+      <div class="pc-box con">
+        <div class="pc-title">Limitations</div>
+        <ul>${r.cons.map(c=>`<li>${c}</li>`).join('')}</ul>
+      </div>
+    </div>
+    <div class="metrics-row">
+      <div class="metric-bar">
+        <div class="ml">Speed</div>
+        <div class="mb-bg"><div class="mb-fill" style="width:${r.speed}%;background:var(--warn)"></div></div>
+      </div>
+      <div class="metric-bar">
+        <div class="ml">Accuracy</div>
+        <div class="mb-bg"><div class="mb-fill" style="width:${r.accuracy}%;background:var(--accent2)"></div></div>
+      </div>
+    </div>
+    <div class="nav-btns">
+      <button class="nbtn" id="prevBtn" ${active===0?'disabled':''}>← Previous rung</button>
+      <button class="nbtn" id="nextBtn" ${active===RUNGS.length-1?'disabled':''}>Next rung →</button>
+    </div>
+  `;
+  document.getElementById('prevBtn')?.addEventListener('click', ()=>{ if(active>0){active--; render();} });
+  document.getElementById('nextBtn')?.addEventListener('click', ()=>{ if(active<RUNGS.length-1){active++; render();} });
+}
+
+function render(){
+  renderLadder();
+  renderDetail();
+}
+
+render();
+</script>
+</body>
+</html>
