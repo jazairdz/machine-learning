@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 21 — Research Roadmap Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:24px;}
+
+  .q-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 26px;margin-bottom:18px;}
+  .q-step{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+  .q-text{font-size:16px;font-weight:500;color:var(--heading);margin-bottom:16px;line-height:1.5;}
+  .options{display:flex;flex-direction:column;gap:8px;}
+  .opt-btn{
+    text-align:left; padding:12px 16px; border:1px solid var(--border); border-radius:8px;
+    background:#fff; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; font-size:13.5px;
+    color:var(--text); transition:all .15s;
+  }
+  .opt-btn:hover{border-color:var(--accent); background:var(--tag-bg);}
+
+  .progress-dots{display:flex;gap:6px;margin-bottom:18px;}
+  .pdot2{width:32px;height:4px;border-radius:2px;background:var(--border);}
+  .pdot2.done{background:var(--accent2);}
+  .pdot2.active{background:var(--accent);}
+
+  .result-panel{background:var(--surface);border:2px solid var(--accent);border-radius:12px;padding:24px 28px;}
+  .result-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .result-icon{font-size:28px;}
+  .result-title{font-family:'Playfair Display',serif;font-size:21px;color:var(--heading);}
+  .phase-badge{display:inline-block;background:var(--tag-bg);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 12px;border-radius:14px;margin-bottom:14px;}
+  .result-desc{font-size:14px;line-height:1.7;margin-bottom:16px;}
+
+  .rec-box{background:#fff;border-left:3px solid var(--accent2);border-radius:0 8px 8px 0;padding:14px 18px;margin:14px 0;}
+  .rec-box .rl{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent2);margin-bottom:6px;}
+  .rec-box .rt{font-size:13.5px;line-height:1.6;}
+
+  .framework-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .fw-tag{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);}
+
+  .restart-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-weight:600;font-size:13px;cursor:pointer;margin-top:18px;font-family:'IBM Plex Sans',sans-serif;}
+  .restart-btn:hover{background:var(--accent2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 21 — Research Roadmap Planner</h1>
+  <p class="sub">Answer a few questions about your system and get a personalised recommendation for where to start</p>
+
+  <div id="content"></div>
+</div>
+
+<script>
+var QUESTIONS = [
+  {
+    text: 'What kind of material are you studying?',
+    options: [
+      {label: 'Transition metal compound (oxide, chalcogenide, etc.)', value: 'tm'},
+      {label: 'Simple covalent/ionic/metallic system (Si, NaCl, Cu-type)', value: 'simple'},
+      {label: 'Not sure yet — early exploration', value: 'unsure'},
+    ],
+  },
+  {
+    text: 'Do you already have DFT-relaxed structures or reference data for this system?',
+    options: [
+      {label: 'Yes — I have my own DFT calculations', value: 'own_dft'},
+      {label: 'Some — a few reference structures, not a full dataset', value: 'partial'},
+      {label: 'No — starting from scratch', value: 'none'},
+    ],
+  },
+  {
+    text: 'What accuracy do you need?',
+    options: [
+      {label: 'Rough screening — relative stability, structure search', value: 'rough'},
+      {label: 'Quantitative — precise energies, forces for MD', value: 'quant'},
+      {label: 'Very precise — e.g. magnetic ordering energy differences', value: 'precise'},
+    ],
+  },
+];
+
+var answers = [];
+var step = 0;
+
+function renderProgress(){
+  var dots = '';
+  for(var i=0; i<QUESTIONS.length; i++){
+    var cls = i < step ? 'done' : (i === step ? 'active' : '');
+    dots += '<div class="pdot2 ' + cls + '"></div>';
+  }
+  return '<div class="progress-dots">' + dots + '</div>';
+}
+
+function renderQuestion(){
+  var q = QUESTIONS[step];
+  var html = renderProgress();
+  html += '<div class="q-panel">';
+  html += '<div class="q-step">Question ' + (step+1) + ' of ' + QUESTIONS.length + '</div>';
+  html += '<div class="q-text">' + q.text + '</div>';
+  html += '<div class="options">';
+  q.options.forEach(function(opt, i){
+    html += '<button class="opt-btn" data-val="' + opt.value + '">' + opt.label + '</button>';
+  });
+  html += '</div></div>';
+  document.getElementById('content').innerHTML = html;
+
+  document.querySelectorAll('.opt-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      answers.push(btn.getAttribute('data-val'));
+      step++;
+      if(step < QUESTIONS.length){
+        renderQuestion();
+      } else {
+        renderResult();
+      }
+    });
+  });
+}
+
+function getRecommendation(){
+  var matType = answers[0];
+  var dataStatus = answers[1];
+  var accuracy = answers[2];
+
+  if(matType === 'simple' && accuracy !== 'precise'){
+    return {
+      icon: '⚡', phase: 'Phase 2 — Zero-shot foundation model',
+      title: 'Start with MACE-MP-0, zero-shot',
+      desc: 'Simple covalent, ionic, or metallic systems are exactly the kind of chemistry foundation models handle best straight out of the box. Run MACE-MP-0 directly — no fine-tuning needed for most screening or even quantitative work on this kind of system.',
+      recs: [
+        {l:'Next step', t:'Follow Post 19\'s code to load MACE-MP-0 via ase calculators and run an equation-of-state scan as a first sanity check.'},
+        {l:'Validation', t:'Use Post 20\'s methodology — compare bulk modulus and lattice parameters against experimental references.'},
+      ],
+      frameworks: ['mace-torch', 'ase'],
+    };
+  }
+
+  if(matType === 'tm' && accuracy === 'rough'){
+    return {
+      icon: '⚡', phase: 'Phase 2 — Zero-shot foundation model',
+      title: 'Start with MACE-MP-0, zero-shot — likely sufficient',
+      desc: 'For rough screening of transition metal compounds (relative stability, structure search), MACE-MP-0\'s zero-shot accuracy is typically good enough. The equivariant architecture handles directional d-orbital bonding far better than older invariant networks.',
+      recs: [
+        {l:'Next step', t:'Run MACE-MP-0 on your existing structures (own or from Materials Project, Post 14) and compare relative energies between candidate structures.'},
+        {l:'Watch out for', t:'Magnetic ordering predictions specifically — these are less reliable zero-shot, even for rough screening purposes.'},
+      ],
+      frameworks: ['mace-torch', 'ase', 'pymatgen'],
+    };
+  }
+
+  if(matType === 'tm' && (accuracy === 'quant' || accuracy === 'precise') && (dataStatus === 'own_dft' || dataStatus === 'partial')){
+    return {
+      icon: '🎯', phase: 'Phase 3-4 — Targeted DFT + fine-tuning',
+      title: 'Fine-tune MACE on your own DFT data',
+      desc: 'You have transition metal compounds, need quantitative or very precise accuracy, and already have at least some DFT reference data. This is exactly the situation fine-tuning was designed for — starting from MACE-MP-0 weights will be far faster and more data-efficient than training from scratch.',
+      recs: [
+        {l:'Phase 3 first', t:'Run MACE-MP-0 zero-shot on your existing data first to identify the specific failure mode (energies? forces? magnetic ordering?) before generating more DFT calculations.'},
+        {l:'Phase 4', t:'Use mace_run_train with --foundation_model="medium" to fine-tune. Weight forces 100x more heavily than energy in the loss, exactly as in Post 21\'s code.'},
+        {l:'Phase 5', t:'Validate energy/force MAE against held-out DFT structures, and specifically check the AFM/FM energy difference if magnetic ordering matters for your application.'},
+      ],
+      frameworks: ['mace-torch', 'ase', 'pymatgen', 'mace_run_train CLI'],
+    };
+  }
+
+  if(matType === 'tm' && dataStatus === 'none'){
+    return {
+      icon: '📖', phase: 'Phase 1-2 — Foundations first',
+      title: 'Read the papers, then explore zero-shot before generating any DFT data',
+      desc: 'Starting from scratch on a transition metal compound with no reference data is the most common situation researchers face. Resist the urge to immediately start running expensive DFT calculations — there is a clear order of operations that saves time.',
+      recs: [
+        {l:'Phase 1', t:'Read Behler-Parrinello, SchNet, and NequIP in that order (Post 18 walks through exactly what to look for in each).'},
+        {l:'Phase 2', t:'Run MACE-MP-0 zero-shot on a handful of structures you can quickly build (e.g. from a known prototype structure) before computing anything with DFT.'},
+        {l:'Only then Phase 3', t:'If zero-shot accuracy is insufficient for your specific goal, generate a small, targeted set of new DFT calculations via active learning rather than a large random set.'},
+      ],
+      frameworks: ['mace-torch', 'ase', 'pymatgen'],
+    };
+  }
+
+  return {
+    icon: '🪜', phase: 'Phase 1 — Build foundations',
+    title: 'Start with Post 16-18 before choosing a specific path',
+    desc: 'Based on your answers, the most useful next step is making sure the conceptual foundation is solid before committing to a specific workflow — the right path depends on details that will become clearer once the basic hierarchy and architecture choices are understood.',
+    recs: [
+      {l:'Read first', t:'Post 16 (the AI hierarchy) and Post 17 (invariance vs equivariance) — these clarify what each method can and cannot do for your system.'},
+      {l:'Then explore', t:'Run the hands-on code from Post 19 on a simple test system to build intuition before applying it to your specific research target.'},
+    ],
+    frameworks: ['mace-torch', 'ase'],
+  };
+}
+
+function renderResult(){
+  var rec = getRecommendation();
+  var html = renderProgress();
+  html += '<div class="result-panel">';
+  html += '<div class="result-header"><span class="result-icon">' + rec.icon + '</span><span class="result-title">' + rec.title + '</span></div>';
+  html += '<span class="phase-badge">' + rec.phase + '</span>';
+  html += '<p class="result-desc">' + rec.desc + '</p>';
+  rec.recs.forEach(function(r){
+    html += '<div class="rec-box"><div class="rl">' + r.l + '</div><div class="rt">' + r.t + '</div></div>';
+  });
+  html += '<div class="framework-row">';
+  rec.frameworks.forEach(function(f){
+    html += '<span class="fw-tag">' + f + '</span>';
+  });
+  html += '</div>';
+  html += '<button class="restart-btn" id="restartBtn">↺ Start over</button>';
+  html += '</div>';
+
+  document.getElementById('content').innerHTML = html;
+  document.getElementById('restartBtn').addEventListener('click', function(){
+    answers = [];
+    step = 0;
+    renderQuestion();
+  });
+}
+
+renderQuestion();
+</script>
+</body>
+</html>
