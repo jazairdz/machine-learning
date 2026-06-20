@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>App 18 — Paper Timeline Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#fff;--surface:#f7f6f2;--border:#e0ddd6;--accent:#1a5276;--accent2:#0f6e56;--warn:#854f0b;--text:#0d0d0d;--muted:#444;--code-bg:#f0ede4;--tag-bg:#d4e6f1;--coral:#993c1d;--purple:#6c3483;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:20px 14px 60px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(20px,3.5vw,28px);margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:26px;}
+
+  /* Timeline track */
+  .timeline{position:relative;margin:30px 0 40px;padding:0 10px;}
+  .track-line{position:absolute;top:28px;left:30px;right:30px;height:3px;background:var(--border);border-radius:2px;}
+  .track-fill{position:absolute;top:28px;left:30px;height:3px;background:var(--accent);border-radius:2px;transition:width .3s;}
+  .nodes{display:flex;justify-content:space-between;position:relative;}
+  .node{flex:1;text-align:center;cursor:pointer;position:relative;}
+  .node-dot{
+    width:22px;height:22px;border-radius:50%;background:var(--bg);
+    border:3px solid var(--border);margin:18px auto 10px;position:relative;z-index:2;
+    transition:all .2s;
+  }
+  .node:hover .node-dot{border-color:var(--accent);}
+  .node.active .node-dot{border-color:var(--accent);background:var(--accent);}
+  .node.passed .node-dot{border-color:var(--accent);background:var(--bg);}
+  .node-year{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);font-weight:600;}
+  .node-name{font-size:12px;color:var(--text);margin-top:2px;max-width:120px;margin-left:auto;margin-right:auto;font-weight:500;}
+  .node.active .node-name{color:var(--accent);font-weight:700;}
+
+  /* Detail card */
+  .detail{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 26px;}
+  .detail-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .detail h2{font-family:'Playfair Display',serif;font-size:20px;color:var(--heading);}
+  .year-badge{background:var(--tag-bg);color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:4px 12px;border-radius:14px;white-space:nowrap;}
+  .authors{font-size:13px;color:var(--muted);margin-bottom:14px;font-style:italic;}
+  .link-line a{color:var(--accent);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .link-line a:hover{text-decoration:underline;}
+
+  .section-block{margin:16px 0;}
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+  .section-label.problem{color:var(--coral);}
+  .section-label.contribution{color:var(--accent2);}
+  .section-label.limit{color:var(--warn);}
+  .section-text{font-size:14px;line-height:1.7;}
+
+  .eq-box{background:#fff;border-left:3px solid var(--purple);border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--text);line-height:1.8;}
+
+  .nav-btns{display:flex;justify-content:space-between;margin-top:18px;}
+  .nbtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:600;}
+  .nbtn:hover{background:var(--accent2);}
+  .nbtn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+
+  @media(max-width:700px){
+    .node-name{font-size:10px;max-width:70px;}
+    .track-line,.track-fill{left:18px;right:18px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>App 18 — Paper Timeline Explorer</h1>
+  <p class="sub">Click through each foundational paper to see what problem it solved, its key contribution, and what it left for the next paper to fix</p>
+
+  <div class="timeline">
+    <div class="track-line"></div>
+    <div class="track-fill" id="trackFill"></div>
+    <div class="nodes" id="nodes"></div>
+  </div>
+
+  <div class="detail" id="detail"></div>
+</div>
+
+<script>
+var PAPERS = [
+  {
+    year: '2007', short: 'Behler-Parrinello',
+    name: 'Generalized Neural-Network Representation of High-Dimensional Potential-Energy Surfaces',
+    authors: 'J. Behler & M. Parrinello, Physical Review Letters 98, 146401',
+    link: 'https://link.aps.org/doi/10.1103/PhysRevLett.98.146401',
+    problem: 'A single neural network predicting total energy directly from raw atomic coordinates had two hard problems: the output changed if atoms were simply listed in a different order (no permutation invariance), and a network trained on a small system could not be applied to a larger one (no size transferability).',
+    contribution: 'Total energy is written as a sum of per-atom contributions, each computed by a small neural network applied identically to every atom of a given element, using hand-crafted rotation- and permutation-invariant "symmetry function" descriptors as input. Summing independent per-atom terms automatically gives correct size-scaling and order-independence.',
+    limit: 'The symmetry functions were hand-designed in advance — researchers had to choose the functional forms and parameters before training. If the chosen functions did not capture some relevant feature of the local environment, no amount of training data could fix it.',
+    eq: 'E_total = Σ_i E_i(G_i)\nG_i = hand-crafted symmetry-function fingerprint\nE_i = small NN, shared weights per element',
+  },
+  {
+    year: '2017', short: 'SchNet',
+    name: 'SchNet: A Continuous-Filter Convolutional Neural Network for Modeling Quantum Interactions',
+    authors: 'K. Schütt et al., arXiv:1712.06113',
+    link: 'https://arxiv.org/abs/1712.06113',
+    problem: 'Behler-Parrinello\'s hand-crafted symmetry functions formed a fixed, finite basis. If those functions missed some relevant aspect of the local atomic environment, the model could never learn it, no matter how much training data was provided.',
+    contribution: 'Hand-crafted descriptors are replaced with learnable "continuous-filter convolutions" — functions of interatomic distance whose weights are themselves learned during training. The network discovers which distance patterns matter most for the property being predicted, end-to-end, while keeping every symmetry guarantee from Behler-Parrinello (permutation invariance, size extensivity, rotation invariance).',
+    limit: 'SchNet\'s filters remain functions of distance alone. The architecture is fully rotation-invariant and never explicitly represents bond direction — directional information needed for accurate forces has to be recovered only indirectly, through differentiation of distance-based features.',
+    eq: 'h_i^(t+1) = h_i^(t) + Σ_j h_j^(t) ⊙ W_filter(‖r_i − r_j‖)\nW_filter = small NN mapping distance → filter weights',
+  },
+  {
+    year: '2022', short: 'NequIP',
+    name: 'E(3)-Equivariant Graph Neural Networks for Data-Efficient and Accurate Interatomic Potentials',
+    authors: 'S. Batzner et al., Nature Communications 13, 2453',
+    link: 'https://www.nature.com/articles/s41467-022-29939-5',
+    problem: 'Invariant networks like SchNet needed large amounts of training data to learn accurate forces indirectly, because directional information had to be reconstructed through differentiation of distance-only features rather than being represented explicitly from the start.',
+    contribution: 'Every layer is built from E(3)-equivariant tensor operations — internal features are organised by rotation order (scalars, vectors, and higher tensors simultaneously) and combined via Clebsch-Gordan tensor products that are mathematically guaranteed to preserve correct equivariance through arbitrarily many layers. The headline empirical result: matching or exceeding invariant-network accuracy while using 10-100x fewer training structures for the same force accuracy.',
+    limit: 'Many-body correlations between atoms are built up gradually, layer by layer, which requires stacking several equivariant layers to capture complex multi-atom interactions — adding computational cost per added layer.',
+    eq: 'h_i^(t+1),ℓ = h_i^(t),ℓ ⊕ Σ_j [Y^ℓ′(r̂_ij) ⊗ h_j^(t),ℓ″]^ℓ\nY^ℓ′ = spherical harmonics of bond direction\nClebsch-Gordan coefficients ensure exact equivariance',
+  },
+  {
+    year: '2022', short: 'MACE',
+    name: 'MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields',
+    authors: 'I. Batatia et al., arXiv:2206.07697',
+    link: 'https://arxiv.org/abs/2206.07697',
+    problem: 'NequIP-style equivariant networks build up many-body correlations only gradually across many message-passing layers, which is computationally expensive and requires more layers to reach the same expressivity for complex multi-atom interactions.',
+    contribution: 'Higher-order many-body equivariant features are constructed within a single message-passing layer, rather than being built up gradually over many layers. This makes the architecture both more expressive per layer and substantially faster to train — one of the key reasons MACE was chosen as the backbone for foundation models like MACE-MP-0.',
+    limit: 'As of this module, MACE-MP-0 and similar foundation models are highly capable but not uniformly accurate everywhere — strongly correlated transition-metal oxides and compounds requiring DFT+U corrections in their training labels remain harder than simple covalent or metallic systems (see Post 20\'s validation discussion).',
+    eq: 'Many-body features built per-layer via higher-order\nequivariant tensor products — fewer layers needed\nfor the same expressivity as NequIP',
+  },
+];
+
+var active = 0;
+
+function renderNodes(){
+  var container = document.getElementById('nodes');
+  container.innerHTML = '';
+  PAPERS.forEach(function(p, i){
+    var div = document.createElement('div');
+    div.className = 'node' + (i===active ? ' active' : (i<active ? ' passed' : ''));
+    div.innerHTML = '<div class="node-dot"></div><div class="node-year">' + p.year + '</div><div class="node-name">' + p.short + '</div>';
+    div.addEventListener('click', function(){ active = i; render(); });
+    container.appendChild(div);
+  });
+  var fillPct = PAPERS.length > 1 ? (active / (PAPERS.length - 1)) * 100 : 0;
+  document.getElementById('trackFill').style.width = 'calc(' + fillPct + '% )';
+}
+
+function renderDetail(){
+  var p = PAPERS[active];
+  var detail = document.getElementById('detail');
+  detail.innerHTML =
+    '<div class="detail-header">' +
+      '<h2>' + p.name + '</h2>' +
+      '<span class="year-badge">' + p.year + '</span>' +
+    '</div>' +
+    '<p class="authors">' + p.authors + '</p>' +
+    '<p class="link-line"><a href="' + p.link + '" target="_blank">' + p.link + ' →</a></p>' +
+    '<div class="eq-box">' + p.eq.replace(/\n/g, '<br/>') + '</div>' +
+    '<div class="section-block">' +
+      '<div class="section-label problem">The problem it solved</div>' +
+      '<div class="section-text">' + p.problem + '</div>' +
+    '</div>' +
+    '<div class="section-block">' +
+      '<div class="section-label contribution">The contribution</div>' +
+      '<div class="section-text">' + p.contribution + '</div>' +
+    '</div>' +
+    '<div class="section-block">' +
+      '<div class="section-label limit">What it left unsolved</div>' +
+      '<div class="section-text">' + p.limit + '</div>' +
+    '</div>' +
+    '<div class="nav-btns">' +
+      '<button class="nbtn" id="prevBtn"' + (active===0 ? ' disabled' : '') + '>← Previous paper</button>' +
+      '<button class="nbtn" id="nextBtn"' + (active===PAPERS.length-1 ? ' disabled' : '') + '>Next paper →</button>' +
+    '</div>';
+
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  if(prevBtn) prevBtn.addEventListener('click', function(){ if(active>0){ active--; render(); } });
+  if(nextBtn) nextBtn.addEventListener('click', function(){ if(active<PAPERS.length-1){ active++; render(); } });
+}
+
+function render(){
+  renderNodes();
+  renderDetail();
+}
+
+render();
+</script>
+</body>
+</html>
